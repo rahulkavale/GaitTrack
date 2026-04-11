@@ -4,27 +4,36 @@ import type { SessionMetrics } from "./types";
 
 const supabase = () => createClient();
 
-// Supabase returns joined data under the full prefixed table name.
-// This normalizes keys so the app can use short names (e.g., "recordings" not "gait_dev_recordings").
-function normalizeKeys(obj: Record<string, unknown>): Record<string, unknown> {
-  const prefix = (process.env.NEXT_PUBLIC_TABLE_PREFIX || "gait_dev") + "_";
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const shortKey = key.startsWith(prefix) ? key.slice(prefix.length) : key;
-    result[shortKey] = value;
-  }
-  return result;
-}
 
 // ---- Patients ----
 
 export async function getPatients() {
+  // First get patient IDs this user has access to
+  const { data: { user } } = await supabase().auth.getUser();
+  if (!user) return [];
+
+  const { data: accessRows, error: accessError } = await supabase()
+    .from(TABLES.patient_access)
+    .select("patient_id, role")
+    .eq("user_id", user.id);
+  if (accessError) throw accessError;
+  if (!accessRows || accessRows.length === 0) return [];
+
+  const patientIds = accessRows.map(r => r.patient_id);
+
+  // Then fetch those patients
   const { data, error } = await supabase()
     .from(TABLES.patients)
-    .select(`*, ${TABLES.patient_access}(role, user_id)`)
+    .select("*")
+    .in("id", patientIds)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data || []).map((row) => normalizeKeys(row as unknown as Record<string, unknown>));
+
+  // Merge access roles back in
+  return (data || []).map(patient => ({
+    ...patient,
+    patient_access: accessRows.filter(a => a.patient_id === patient.id),
+  }));
 }
 
 export async function createPatient(name: string, birthDate?: string) {
@@ -60,23 +69,42 @@ export async function deletePatient(patientId: string) {
 // ---- Sessions ----
 
 export async function getSessions(patientId: string) {
-  const { data, error } = await supabase()
+  const { data: sessions, error } = await supabase()
     .from(TABLES.sessions)
-    .select(`*, ${TABLES.recordings}(id, view_angle, duration_ms, knee_symmetry_index, hip_symmetry_index, stride_cadence, total_steps, avg_left_knee_angle, avg_right_knee_angle, avg_left_hip_angle, avg_right_hip_angle)`)
+    .select("*")
     .eq("patient_id", patientId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data || []).map((row) => normalizeKeys(row as unknown as Record<string, unknown>));
+  if (!sessions || sessions.length === 0) return [];
+
+  // Fetch recordings for these sessions
+  const sessionIds = sessions.map(s => s.id);
+  const { data: recordings } = await supabase()
+    .from(TABLES.recordings)
+    .select("id, session_id, view_angle, duration_ms, knee_symmetry_index, hip_symmetry_index, stride_cadence, total_steps, avg_left_knee_angle, avg_right_knee_angle, avg_left_hip_angle, avg_right_hip_angle, computed_metrics")
+    .in("session_id", sessionIds);
+
+  return sessions.map(session => ({
+    ...session,
+    recordings: (recordings || []).filter(r => r.session_id === session.id),
+  }));
 }
 
 export async function getSession(sessionId: string) {
-  const { data, error } = await supabase()
+  const { data: session, error } = await supabase()
     .from(TABLES.sessions)
-    .select(`*, ${TABLES.recordings}(*)`)
+    .select("*")
     .eq("id", sessionId)
     .single();
   if (error) throw error;
-  return data ? normalizeKeys(data as unknown as Record<string, unknown>) : null;
+  if (!session) return null;
+
+  const { data: recordings } = await supabase()
+    .from(TABLES.recordings)
+    .select("*")
+    .eq("session_id", sessionId);
+
+  return { ...session, recordings: recordings || [] };
 }
 
 function generateJoinCode(): string {
@@ -94,13 +122,20 @@ export async function createSession(patientId: string, label: string) {
 }
 
 export async function getSessionByJoinCode(joinCode: string) {
-  const { data, error } = await supabase()
+  const { data: session, error } = await supabase()
     .from(TABLES.sessions)
-    .select(`*, ${TABLES.recordings}(id, view_angle)`)
+    .select("*")
     .eq("join_code", joinCode)
     .single();
   if (error) throw error;
-  return data ? normalizeKeys(data as unknown as Record<string, unknown>) : null;
+  if (!session) return null;
+
+  const { data: recordings } = await supabase()
+    .from(TABLES.recordings)
+    .select("id, view_angle")
+    .eq("session_id", session.id);
+
+  return { ...session, recordings: recordings || [] };
 }
 
 export async function updateSessionMetrics(
@@ -231,13 +266,27 @@ export async function getPendingInvitations() {
   const { data: { user } } = await supabase().auth.getUser();
   if (!user) return [];
 
-  const { data, error } = await supabase()
+  const { data: invitations, error } = await supabase()
     .from(TABLES.invitations)
-    .select(`*, ${TABLES.patients}(name)`)
+    .select("*")
     .eq("email", user.email)
     .eq("accepted", false);
   if (error) throw error;
-  return (data || []).map((row) => normalizeKeys(row as unknown as Record<string, unknown>));
+  if (!invitations || invitations.length === 0) return [];
+
+  // Fetch patient names separately
+  const patientIds = [...new Set(invitations.map(i => i.patient_id))];
+  const { data: patients } = await supabase()
+    .from(TABLES.patients)
+    .select("id, name")
+    .in("id", patientIds);
+
+  const patientMap = new Map((patients || []).map(p => [p.id, p.name]));
+
+  return invitations.map(inv => ({
+    ...inv,
+    patients: { name: patientMap.get(inv.patient_id) || "Unknown" },
+  }));
 }
 
 export async function acceptInvitation(invitationId: string) {
