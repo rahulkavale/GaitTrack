@@ -1,0 +1,199 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { getPatients, createPatient, deletePatient, getPendingInvitations, acceptInvitation } from "@/lib/db";
+
+interface Patient {
+  id: string;
+  name: string;
+  birth_date: string | null;
+  created_at: string;
+  patient_access: Array<{ role: string; user_id: string }>;
+}
+
+interface Invitation {
+  id: string;
+  role: string;
+  patients: { name: string };
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddPatient, setShowAddPatient] = useState(false);
+  const [newPatientName, setNewPatientName] = useState("");
+  const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserName(user.user_metadata?.name || user.email || "");
+      }
+
+      try {
+        const [p, inv] = await Promise.all([getPatients(), getPendingInvitations()]);
+        console.log("Loaded patients:", p);
+        setPatients(p as unknown as Patient[]);
+        setInvitations(inv as unknown as Invitation[]);
+      } catch (err) {
+        console.error("Failed to load patients:", err);
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const handleAddPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPatientName.trim()) return;
+    await createPatient(newPatientName.trim());
+    setNewPatientName("");
+    setShowAddPatient(false);
+    const p = await getPatients();
+    setPatients(p as unknown as Patient[]);
+  };
+
+  const handleAcceptInvitation = async (id: string) => {
+    await acceptInvitation(id);
+    const [p, inv] = await Promise.all([getPatients(), getPendingInvitations()]);
+    setPatients(p as unknown as Patient[]);
+    setInvitations(inv as unknown as Invitation[]);
+  };
+
+  const handleDeletePatient = async (patientId: string, patientName: string) => {
+    if (!confirm(`Delete "${patientName}" and all their sessions? This cannot be undone.`)) return;
+    try {
+      await deletePatient(patientId);
+      setPatients(prev => prev.filter(p => p.id !== patientId));
+    } catch (err) {
+      console.error("Failed to delete:", err);
+      alert("Failed to delete. You may not have permission.");
+    }
+  };
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      <div className="bg-gray-900 p-4 pb-6 safe-top">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">Gait Tracker</h1>
+            <p className="text-sm text-gray-400">Hi, {userName}</p>
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {invitations.length > 0 && (
+          <div className="space-y-2">
+            {invitations.map((inv) => (
+              <div key={inv.id} className="bg-blue-900/30 border border-blue-800 rounded-xl p-4">
+                <p className="text-sm text-blue-300 mb-2">
+                  You&apos;ve been invited as <strong>{inv.role}</strong> for{" "}
+                  <strong>{inv.patients?.name}</strong>
+                </p>
+                <button
+                  onClick={() => handleAcceptInvitation(inv.id)}
+                  className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg active:bg-blue-700"
+                >
+                  Accept
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAddPatient ? (
+          <form onSubmit={handleAddPatient} className="bg-gray-800 rounded-xl p-4">
+            <label className="block text-sm text-gray-400 mb-2">Child&apos;s name</label>
+            <input
+              type="text"
+              value={newPatientName}
+              onChange={(e) => setNewPatientName(e.target.value)}
+              autoFocus
+              className="w-full bg-gray-900 text-white rounded-lg px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="e.g., Arjun"
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm active:bg-green-700"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddPatient(false)}
+                className="flex-1 bg-gray-700 text-white py-2 rounded-lg text-sm active:bg-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowAddPatient(true)}
+            className="w-full bg-green-600 rounded-xl p-4 text-center active:bg-green-700 transition-colors"
+          >
+            <div className="text-lg font-bold">Add a Child</div>
+            <div className="text-sm text-green-200">Start tracking their progress</div>
+          </button>
+        )}
+
+        {loading ? (
+          <div className="text-center text-gray-500 py-8">Loading...</div>
+        ) : patients.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 mb-2">No children added yet</p>
+            <p className="text-gray-600 text-sm">
+              Add a child to start recording walking sessions
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {patients.map((patient) => (
+              <div key={patient.id} className="bg-gray-800 rounded-xl p-4 mb-3">
+                <Link href={`/patient/${patient.id}`}>
+                  <div className="flex justify-between items-center active:opacity-70">
+                    <div>
+                      <h3 className="font-medium text-white text-lg">{patient.name}</h3>
+                      <p className="text-xs text-gray-400">
+                        Added {new Date(patient.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="text-gray-600 text-2xl">&rsaquo;</span>
+                  </div>
+                </Link>
+                <button
+                  onClick={() => handleDeletePatient(patient.id, patient.name)}
+                  className="mt-2 text-xs text-red-400/60 active:text-red-400"
+                >
+                  Delete child and all data
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

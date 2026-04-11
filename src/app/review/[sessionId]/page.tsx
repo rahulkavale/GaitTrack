@@ -1,0 +1,243 @@
+"use client";
+
+import { useEffect, useState, use } from "react";
+import { useRouter } from "next/navigation";
+import { getSession, updateSessionNotes, deleteSession } from "@/lib/db";
+import { GaitReport } from "@/components/GaitReport";
+import { reconcileViews } from "@/lib/reconcile-views";
+import type { SessionMetrics } from "@/lib/types";
+
+interface Recording {
+  id: string;
+  view_angle: string;
+  duration_ms: number;
+  avg_left_knee_angle: number | null;
+  avg_right_knee_angle: number | null;
+  avg_left_hip_angle: number | null;
+  avg_right_hip_angle: number | null;
+  avg_left_ankle_angle: number | null;
+  avg_right_ankle_angle: number | null;
+  knee_symmetry_index: number | null;
+  hip_symmetry_index: number | null;
+  stride_cadence: number | null;
+  total_steps: number | null;
+}
+
+interface SessionData {
+  id: string;
+  patient_id: string;
+  label: string;
+  notes: string | null;
+  join_code: string | null;
+  knee_symmetry_index: number | null;
+  hip_symmetry_index: number | null;
+  stride_cadence: number | null;
+  total_steps: number | null;
+  duration_seconds: number | null;
+  created_at: string;
+  recordings: Recording[];
+}
+
+const VIEW_LABELS: Record<string, string> = {
+  "side-left": "Left Side",
+  "side-right": "Right Side",
+  front: "Front",
+  back: "Back",
+};
+
+// Convert a DB recording row into a minimal SessionMetrics for the reconciler
+function recordingToMetrics(rec: Recording): SessionMetrics {
+  return {
+    durationSeconds: (rec.duration_ms || 0) / 1000,
+    totalSteps: rec.total_steps ?? 0,
+    strideCadence: rec.stride_cadence ?? 0,
+    avgLeftKneeAngle: rec.avg_left_knee_angle ?? 0,
+    avgRightKneeAngle: rec.avg_right_knee_angle ?? 0,
+    avgLeftHipAngle: rec.avg_left_hip_angle ?? 0,
+    avgRightHipAngle: rec.avg_right_hip_angle ?? 0,
+    avgLeftAnkleAngle: rec.avg_left_ankle_angle ?? 0,
+    avgRightAnkleAngle: rec.avg_right_ankle_angle ?? 0,
+    kneeSymmetryIndex: rec.knee_symmetry_index ?? 0,
+    hipSymmetryIndex: rec.hip_symmetry_index ?? 0,
+    // These detailed metrics aren't stored in DB yet - defaults
+    leftKneeROM: 0, rightKneeROM: 0,
+    leftPeakFlexion: 0, rightPeakFlexion: 0,
+    crouchGaitDetected: false, crouchSeverity: 0,
+    leftHipROM: 0, rightHipROM: 0,
+    ankleSymmetryIndex: 0,
+    toeWalkingDetected: false, toeWalkingSeverity: 0,
+    leftHeelStrikePresent: true, rightHeelStrikePresent: true,
+    avgForwardLean: 0, avgLateralLean: 0, trunkStability: 1,
+    avgHeadTilt: 0, avgHeadForward: 0, headTiltDirection: "neutral",
+    headStability: 1, headRotationBias: "neutral", avgHeadRotation: 0,
+    leftArmSwingRange: 0, rightArmSwingRange: 0,
+    armSwingSymmetry: 0, guardedArmDetected: false,
+    leftStancePercent: 50, rightStancePercent: 50,
+    doubleSupportPercent: 20, stepTimeAsymmetry: 0, legPreference: "balanced",
+    stepWidth: 0, lateralDeviation: 0, kneeValgusDetected: false,
+    gaitDeviationIndex: 50, overallSymmetry: 0,
+  };
+}
+
+export default function ReviewPage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const { sessionId } = use(params);
+  const router = useRouter();
+  const [session, setSession] = useState<SessionData | null>(null);
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"reconciled" | string>("reconciled");
+
+  useEffect(() => {
+    getSession(sessionId).then((s) => {
+      if (s) {
+        const session = s as unknown as SessionData;
+        setSession(session);
+        setNotes(session.notes || "");
+        // Default to reconciled if multiple angles, else first recording
+        if (session.recordings?.length > 1) {
+          setActiveTab("reconciled");
+        } else if (session.recordings?.length === 1) {
+          setActiveTab(session.recordings[0].view_angle);
+        }
+      }
+      setLoading(false);
+    });
+  }, [sessionId]);
+
+  const handleSaveNotes = async () => {
+    if (!session) return;
+    await updateSessionNotes(session.id, notes);
+  };
+
+  const handleDelete = async () => {
+    if (!session) return;
+    if (confirm("Delete this session? This cannot be undone.")) {
+      await deleteSession(session.id);
+      router.push(`/patient/${session.patient_id}`);
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">Loading...</div>;
+  }
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">
+        <div className="text-center">
+          <p>Session not found</p>
+          <button onClick={() => router.push("/")} className="mt-4 text-green-400 underline">Go home</button>
+        </div>
+      </div>
+    );
+  }
+
+  const date = new Date(session.created_at);
+  const recordings = session.recordings || [];
+  const hasMultipleAngles = recordings.length > 1;
+
+  // Build reconciled metrics
+  const reconciledMetrics = hasMultipleAngles
+    ? reconcileViews(recordings.map(r => ({ view_angle: r.view_angle, metrics: recordingToMetrics(r) })))
+    : recordings.length === 1 ? recordingToMetrics(recordings[0]) : null;
+
+  // Get metrics for active tab
+  const getActiveMetrics = (): SessionMetrics | null => {
+    if (activeTab === "reconciled") return reconciledMetrics;
+    const rec = recordings.find(r => r.view_angle === activeTab);
+    return rec ? recordingToMetrics(rec) : null;
+  };
+
+  const activeMetrics = getActiveMetrics();
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white pb-8">
+      <div className="bg-gray-900 p-4 safe-top">
+        <button
+          onClick={() => router.push(`/patient/${session.patient_id}`)}
+          className="text-green-400 text-sm mb-2"
+        >
+          &larr; Back to sessions
+        </button>
+        <h1 className="text-xl font-bold">{session.label}</h1>
+        <p className="text-sm text-gray-400">
+          {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          {" at "}
+          {date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          {recordings.length} angle{recordings.length !== 1 ? "s" : ""} recorded
+          {session.join_code && <span> &middot; Code: <span className="font-mono text-green-400">{session.join_code}</span></span>}
+        </p>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* View toggle tabs */}
+        {hasMultipleAngles && (
+          <div className="flex gap-1 bg-gray-900 rounded-xl p-1 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("reconciled")}
+              className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-medium ${
+                activeTab === "reconciled" ? "bg-green-600 text-white" : "text-gray-400"
+              }`}
+            >
+              Combined
+            </button>
+            {recordings.map((rec) => (
+              <button
+                key={rec.id}
+                onClick={() => setActiveTab(rec.view_angle)}
+                className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-medium ${
+                  activeTab === rec.view_angle ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                {VIEW_LABELS[rec.view_angle] ?? rec.view_angle}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Active tab description */}
+        {hasMultipleAngles && activeTab === "reconciled" && (
+          <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-3 text-xs text-green-300">
+            Combined view: best metrics from each camera angle merged into one analysis.
+            Side view for joint angles, front view for lateral movement.
+          </div>
+        )}
+
+        {/* Gait Report */}
+        {activeMetrics ? (
+          <GaitReport metrics={activeMetrics} />
+        ) : (
+          <div className="bg-gray-800 rounded-xl p-6 text-center text-gray-400">
+            No metrics available for this view.
+          </div>
+        )}
+
+        {/* Notes */}
+        <div className="bg-gray-800 rounded-xl p-4">
+          <h2 className="text-sm font-medium text-gray-300 mb-2">Notes</h2>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add notes about this session..."
+            className="w-full bg-gray-900 text-white text-sm rounded-lg p-3 h-24 resize-none placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500"
+          />
+          <button
+            onClick={handleSaveNotes}
+            className="mt-2 bg-green-600 text-white text-sm px-4 py-2 rounded-lg active:bg-green-700"
+          >
+            Save notes
+          </button>
+        </div>
+
+        {/* Delete */}
+        <button
+          onClick={handleDelete}
+          className="w-full bg-red-900/50 text-red-400 py-3 rounded-xl text-sm active:bg-red-900"
+        >
+          Delete session
+        </button>
+      </div>
+    </div>
+  );
+}
