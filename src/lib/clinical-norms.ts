@@ -89,22 +89,46 @@ export interface GaitPattern {
 }
 
 export function classifyGaitPatterns(params: {
-  kneeFlexionAtContact: number;       // clinical flexion angle at initial contact
-  kneeFlexionMidStance: number;       // clinical flexion angle during mid-stance
-  peakKneeFlexionSwing: number;       // peak clinical flexion during swing
-  kneeROM: number;                     // total ROM through gait cycle
-  ankleAtContact: number;              // clinical ankle angle at initial contact (+ = DF, - = PF)
-  hipFlexionAtContact: number;         // clinical hip flexion at initial contact
-  trunkLateralLean: number;            // degrees
-  armSwingRange: number;               // degrees
-  stepWidth: number;                   // normalized
-  peakKneeExtension: number;          // minimum clinical flexion (negative = hyperextension)
+  leftKneeFlexionAtContact: number;
+  rightKneeFlexionAtContact: number;
+  leftKneeFlexionMidStance: number;
+  rightKneeFlexionMidStance: number;
+  peakLeftKneeFlexionSwing: number;
+  peakRightKneeFlexionSwing: number;
+  leftKneeROM: number;
+  rightKneeROM: number;
+  leftAnkleAtContact: number;          // + = DF, - = PF
+  rightAnkleAtContact: number;
+  hipFlexionAtContact: number;         // averaged
+  trunkLateralLeanSigned: number;      // signed: + = lean to right, - = lean to left
+  armSwingRange: number;
+  stepWidth: number;
+  leftPeakKneeExtension: number;       // signed clinical flexion (negative = hyperextension)
+  rightPeakKneeExtension: number;
 }): GaitPattern[] {
   const p = params;
   const patterns: GaitPattern[] = [];
 
+  // Helper: pick which side is more affected for a "higher = worse" metric
+  function worseSide(left: number, right: number, eqTol: number): { side: "left" | "right" | "both"; value: number } {
+    if (Math.abs(left - right) <= eqTol) return { side: "both", value: Math.max(left, right) };
+    return left > right ? { side: "left", value: left } : { side: "right", value: right };
+  }
+  // For "lower = worse" (e.g. ROM)
+  function worseSideLow(left: number, right: number, eqTol: number): { side: "left" | "right" | "both"; value: number } {
+    if (Math.abs(left - right) <= eqTol) return { side: "both", value: Math.min(left, right) };
+    return left < right ? { side: "left", value: left } : { side: "right", value: right };
+  }
+  function sideLabel(s: "left" | "right" | "both", noun: string): string {
+    if (s === "both") return `both ${noun}s`;
+    return `the ${s} ${noun}`;
+  }
+
   // Crouch gait
-  const crouchAngle = Math.max(p.kneeFlexionAtContact, p.kneeFlexionMidStance);
+  const leftCrouch = Math.max(p.leftKneeFlexionAtContact, p.leftKneeFlexionMidStance);
+  const rightCrouch = Math.max(p.rightKneeFlexionAtContact, p.rightKneeFlexionMidStance);
+  const crouch = worseSide(leftCrouch, rightCrouch, 5);
+  const crouchAngle = crouch.value;
   const crouchSev = crouchAngle > 30 ? "severe" : crouchAngle > 15 ? "moderate" : crouchAngle > 5 ? "mild" : "normal";
   patterns.push({
     name: "Crouch Gait",
@@ -112,66 +136,78 @@ export function classifyGaitPatterns(params: {
     severity: crouchSev,
     clinicalDescription: crouchSev === "normal"
       ? "Knee extends normally during stance phase"
-      : `Knee flexion ${Math.round(crouchAngle)}° during stance (${crouchSev}). Knee fails to extend at initial contact and mid-stance.`,
+      : `${crouch.side === "both" ? "Bilateral" : crouch.side === "left" ? "Left" : "Right"} knee flexion ${Math.round(crouchAngle)}° during stance (${crouchSev}). Knee fails to extend at initial contact and mid-stance.`,
     parentDescription: crouchSev === "normal"
       ? "Knees are straightening well when standing on each leg"
-      : `The knees are staying bent ${Math.round(crouchAngle)}° when they should be nearly straight. This is ${crouchSev}.`,
+      : `${crouch.side === "both" ? "Both knees are" : `The ${crouch.side} knee is`} staying bent ${Math.round(crouchAngle)}° when ${crouch.side === "both" ? "they" : "it"} should be nearly straight. This is ${crouchSev}.`,
     suggestion: crouchSev === "normal" ? ""
       : crouchSev === "mild" ? "Monitor. Hamstring stretching exercises."
       : "Assess hamstring tightness. Consider serial casting or orthotic support.",
   });
 
-  // Equinus (toe walking)
-  const equinusSev = p.ankleAtContact < -20 ? "severe" : p.ankleAtContact < -10 ? "moderate" : p.ankleAtContact < -5 ? "mild" : "normal";
+  // Equinus (toe walking) — more negative = more plantarflexed = worse
+  const equinus = worseSideLow(p.leftAnkleAtContact, p.rightAnkleAtContact, 5);
+  const equinusVal = equinus.value;
+  const equinusSev = equinusVal < -20 ? "severe" : equinusVal < -10 ? "moderate" : equinusVal < -5 ? "mild" : "normal";
   patterns.push({
     name: "Equinus (Toe Walking)",
     detected: equinusSev !== "normal",
     severity: equinusSev,
     clinicalDescription: equinusSev === "normal"
       ? "Heel strikes first with ankle near neutral at initial contact"
-      : `Ankle at ${Math.round(p.ankleAtContact)}° plantarflexion at initial contact (${equinusSev}). ${equinusSev === "severe" ? "Toe-only contact." : "Forefoot contact pattern."}`,
+      : `${equinus.side === "both" ? "Bilateral" : equinus.side === "left" ? "Left" : "Right"} ankle at ${Math.round(equinusVal)}° plantarflexion at initial contact (${equinusSev}). ${equinusSev === "severe" ? "Toe-only contact." : "Forefoot contact pattern."}`,
     parentDescription: equinusSev === "normal"
       ? "The heel touches the ground first when stepping - this is good"
-      : `Walking on ${equinusSev === "severe" ? "toes" : "the front of the foot"} instead of landing heel first. This is ${equinusSev}.`,
+      : `${equinus.side === "both" ? "Both feet are landing" : `The ${equinus.side} foot is landing`} on ${equinusSev === "severe" ? "the toes" : "the front of the foot"} instead of heel first. This is ${equinusSev}.`,
     suggestion: equinusSev === "normal" ? ""
       : equinusSev === "mild" ? "Calf stretching. Consider AFO assessment."
       : "Gastrocnemius/soleus tightness likely. AFO recommended. Consider botulinum toxin if spastic.",
   });
 
-  // Stiff knee
-  const stiffSev = p.kneeROM < 20 ? "severe" : p.kneeROM < 40 ? "moderate" : p.kneeROM < 55 ? "mild" : "normal";
+  // Stiff knee — lower ROM = worse
+  const stiff = worseSideLow(p.leftKneeROM, p.rightKneeROM, 8);
+  const stiffROM = stiff.value;
+  const stiffSev = stiffROM < 20 ? "severe" : stiffROM < 40 ? "moderate" : stiffROM < 55 ? "mild" : "normal";
+  const peakSwing = stiff.side === "left" ? p.peakLeftKneeFlexionSwing
+    : stiff.side === "right" ? p.peakRightKneeFlexionSwing
+    : Math.min(p.peakLeftKneeFlexionSwing, p.peakRightKneeFlexionSwing);
   patterns.push({
     name: "Stiff Knee Gait",
     detected: stiffSev !== "normal",
     severity: stiffSev,
     clinicalDescription: stiffSev === "normal"
-      ? `Knee ROM ${Math.round(p.kneeROM)}° through gait cycle (normal)`
-      : `Reduced knee ROM: ${Math.round(p.kneeROM)}° (${stiffSev}). Peak swing flexion only ${Math.round(p.peakKneeFlexionSwing)}°.`,
+      ? `Knee ROM ${Math.round(stiffROM)}° through gait cycle (normal)`
+      : `Reduced knee ROM ${stiff.side === "both" ? "bilaterally" : `on the ${stiff.side}`}: ${Math.round(stiffROM)}° (${stiffSev}). Peak swing flexion only ${Math.round(peakSwing)}°.`,
     parentDescription: stiffSev === "normal"
       ? "The knee is bending and straightening through a good range when walking"
-      : `The knee isn't bending enough during walking - only moving ${Math.round(p.kneeROM)}° instead of the normal 55-70°.`,
+      : `${sideLabel(stiff.side, "knee").charAt(0).toUpperCase() + sideLabel(stiff.side, "knee").slice(1)} ${stiff.side === "both" ? "aren't" : "isn't"} bending enough during walking - only moving ${Math.round(stiffROM)}° instead of the normal 55-70°.`,
     suggestion: stiffSev === "normal" ? ""
       : "Assess rectus femoris. May benefit from knee flexion exercises during swing phase practice.",
   });
 
-  // Trendelenburg
-  const trendSev = p.trunkLateralLean > 12 ? "severe" : p.trunkLateralLean > 7 ? "moderate" : p.trunkLateralLean > 3 ? "mild" : "normal";
+  // Trendelenburg — signed lean tells us direction
+  const leanMag = Math.abs(p.trunkLateralLeanSigned);
+  const leanDir: "left" | "right" = p.trunkLateralLeanSigned >= 0 ? "right" : "left";
+  const trendSev = leanMag > 12 ? "severe" : leanMag > 7 ? "moderate" : leanMag > 3 ? "mild" : "normal";
+  // Trendelenburg lean indicates weakness on the OPPOSITE (stance) hip when leaning over it.
+  // Clinically: trunk leans toward the weak side during single-limb stance on that side.
   patterns.push({
     name: "Trendelenburg",
     detected: trendSev !== "normal",
     severity: trendSev,
     clinicalDescription: trendSev === "normal"
       ? "Trunk stays centered during single limb stance"
-      : `Lateral trunk lean ${Math.round(p.trunkLateralLean)}° (${trendSev}). Compensating for hip abductor weakness.`,
+      : `Lateral trunk lean ${Math.round(leanMag)}° to the ${leanDir} (${trendSev}). Suggests ${leanDir} hip abductor weakness (compensated Trendelenburg).`,
     parentDescription: trendSev === "normal"
       ? "The body stays upright and centered during walking"
-      : `The body is leaning ${Math.round(p.trunkLateralLean)}° to one side during walking. This suggests one hip is weaker.`,
+      : `The body is leaning ${Math.round(leanMag)}° to the ${leanDir} during walking. This suggests the ${leanDir} hip is weaker.`,
     suggestion: trendSev === "normal" ? ""
-      : "Hip abductor strengthening. Side-stepping exercises. Assess gluteus medius.",
+      : `Hip abductor strengthening (${leanDir} side). Side-stepping exercises. Assess gluteus medius.`,
   });
 
   // Jump gait (equinus + crouch combined)
-  const jumpDetected = crouchAngle > 15 && p.ankleAtContact < -5 && p.hipFlexionAtContact > 35;
+  const worstAnkle = Math.min(p.leftAnkleAtContact, p.rightAnkleAtContact);
+  const jumpDetected = crouchAngle > 15 && worstAnkle < -5 && p.hipFlexionAtContact > 35;
   patterns.push({
     name: "Jump Gait",
     detected: jumpDetected,
@@ -185,17 +221,19 @@ export function classifyGaitPatterns(params: {
     suggestion: jumpDetected ? "Multi-level assessment needed. Consider combined approach to hip flexors, hamstrings, and calf." : "",
   });
 
-  // Recurvatum (knee hyperextension)
-  const recurvDetected = p.peakKneeExtension < -5;
+  // Recurvatum (knee hyperextension) — most negative = worst
+  const recurv = worseSideLow(p.leftPeakKneeExtension, p.rightPeakKneeExtension, 3);
+  const recurvVal = recurv.value;
+  const recurvDetected = recurvVal < -5;
   patterns.push({
     name: "Knee Hyperextension",
     detected: recurvDetected,
-    severity: recurvDetected ? (p.peakKneeExtension < -10 ? "severe" : "mild") : "normal",
+    severity: recurvDetected ? (recurvVal < -10 ? "severe" : "mild") : "normal",
     clinicalDescription: recurvDetected
-      ? `Knee hyperextends ${Math.round(Math.abs(p.peakKneeExtension))}° during stance. May indicate quadriceps weakness or hamstring insufficiency.`
+      ? `${recurv.side === "both" ? "Both knees hyperextend" : `The ${recurv.side} knee hyperextends`} ${Math.round(Math.abs(recurvVal))}° during stance. May indicate quadriceps weakness or hamstring insufficiency.`
       : "No knee hyperextension",
     parentDescription: recurvDetected
-      ? "The knee is bending backwards when standing on it - it should stay straight, not go past straight"
+      ? `${recurv.side === "both" ? "Both knees are" : `The ${recurv.side} knee is`} bending backwards when standing on it - it should stay straight, not go past straight`
       : "The knee stays in a good position when standing",
     suggestion: recurvDetected ? "Quadriceps assessment. Consider knee brace to prevent hyperextension." : "",
   });

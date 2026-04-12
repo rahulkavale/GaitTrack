@@ -102,18 +102,29 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
   const leftHipFlexion = toFlexionAngle(m.avgLeftHipAngle);
   const rightHipFlexion = toFlexionAngle(m.avgRightHipAngle);
 
+  // Signed lateral lean from frame data (positive = lean to right; falls back to 0)
+  const trunkLateralLeanSigned = frameMetrics && frameMetrics.length > 0
+    ? frameMetrics.reduce((sum, f) => sum + f.trunkLateralLean, 0) / frameMetrics.length
+    : 0;
+
   // Classify gait patterns
   const patterns = classifyGaitPatterns({
-    kneeFlexionAtContact: Math.max(leftKneeFlexion, rightKneeFlexion),
-    kneeFlexionMidStance: Math.max(leftKneeFlexion, rightKneeFlexion), // approximation
-    peakKneeFlexionSwing: toFlexionAngle(Math.min(m.leftPeakFlexion, m.rightPeakFlexion)),
-    kneeROM: Math.max(m.leftKneeROM, m.rightKneeROM),
-    ankleAtContact: (leftAnkleClinical + rightAnkleClinical) / 2,
+    leftKneeFlexionAtContact: leftKneeFlexion,
+    rightKneeFlexionAtContact: rightKneeFlexion,
+    leftKneeFlexionMidStance: leftKneeFlexion, // approximation
+    rightKneeFlexionMidStance: rightKneeFlexion,
+    peakLeftKneeFlexionSwing: toFlexionAngle(m.leftPeakFlexion),
+    peakRightKneeFlexionSwing: toFlexionAngle(m.rightPeakFlexion),
+    leftKneeROM: m.leftKneeROM,
+    rightKneeROM: m.rightKneeROM,
+    leftAnkleAtContact: leftAnkleClinical,
+    rightAnkleAtContact: rightAnkleClinical,
     hipFlexionAtContact: (leftHipFlexion + rightHipFlexion) / 2,
-    trunkLateralLean: m.avgLateralLean,
+    trunkLateralLeanSigned,
     armSwingRange: (m.leftArmSwingRange + m.rightArmSwingRange) / 2,
     stepWidth: m.stepWidth,
-    peakKneeExtension: -toFlexionAngle(Math.max(m.avgLeftKneeAngle, m.avgRightKneeAngle)),
+    leftPeakKneeExtension: -leftKneeFlexion,
+    rightPeakKneeExtension: -rightKneeFlexion,
   });
 
   const detectedPatterns = patterns.filter(p => p.detected);

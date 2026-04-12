@@ -48,6 +48,8 @@ export default function RecordPage({
   const startTimeRef = useRef<number>(0);
   const framesRef = useRef<PoseFrame[]>([]);
   const frameMetricsRef = useRef<FrameMetrics[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
@@ -56,6 +58,8 @@ export default function RecordPage({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
 
   const metricsUpdateCounter = useRef(0);
 
@@ -153,11 +157,57 @@ export default function RecordPage({
     setIsRecording(true);
     setCurrentMetrics(null);
     setElapsedSeconds(0);
+
+    // Begin recording the composited canvas (video frame + skeleton overlay).
+    // The video stays entirely on-device — chunks are held in memory and exposed
+    // via a blob URL on the done screen for replay/download.
+    const canvas = canvasRef.current;
+    if (canvas && typeof MediaRecorder !== "undefined") {
+      try {
+        const canvasStream = canvas.captureStream(30);
+        const candidates = [
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+          "video/mp4",
+        ];
+        const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) ?? "";
+        const mr = new MediaRecorder(canvasStream, mimeType ? { mimeType } : undefined);
+        recordedChunksRef.current = [];
+        mr.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+        };
+        mediaRecorderRef.current = mr;
+        setRecordedMimeType(mimeType || "video/webm");
+        mr.start(1000);
+      } catch (err) {
+        console.warn("Canvas recording unavailable:", err);
+        mediaRecorderRef.current = null;
+      }
+    }
   }, []);
 
   const stopRecording = useCallback(async () => {
     setIsRecording(false);
     setIsSaving(true);
+
+    // Finalize the canvas MediaRecorder and build a local blob URL
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== "inactive") {
+      await new Promise<void>((resolve) => {
+        mr.onstop = () => resolve();
+        mr.stop();
+      });
+      if (recordedChunksRef.current.length > 0) {
+        const blob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
+        setRecordedVideoUrl(prev => {
+          if (prev) URL.revokeObjectURL(prev);
+          return URL.createObjectURL(blob);
+        });
+      }
+      mediaRecorderRef.current = null;
+    }
+
     try {
       const durationMs = performance.now() - startTimeRef.current;
       const frames = framesRef.current;
@@ -175,7 +225,7 @@ export default function RecordPage({
     } finally {
       setIsSaving(false);
     }
-  }, [sessionId, viewAngle]);
+  }, [sessionId, viewAngle, recordedMimeType]);
 
   // Effects
   useEffect(() => {
@@ -189,8 +239,17 @@ export default function RecordPage({
     return () => {
       cancelAnimationFrame(animationRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
+      const mr = mediaRecorderRef.current;
+      if (mr && mr.state !== "inactive") mr.stop();
     };
   }, []);
+
+  // Revoke any held blob URL when it changes or on unmount
+  useEffect(() => {
+    return () => {
+      if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
+    };
+  }, [recordedVideoUrl]);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -222,6 +281,30 @@ export default function RecordPage({
           <p className="text-sm text-gray-400 mb-6">
             {recordingCount} recording{recordingCount !== 1 ? "s" : ""} in this session.
           </p>
+
+          {/* On-device video replay with body tracking overlay.
+              Not uploaded — lives only as a blob URL until the page is closed. */}
+          {recordedVideoUrl && (
+            <div className="bg-gray-800 rounded-xl p-3 mb-6 text-left">
+              <p className="text-xs text-gray-400 mb-2">Replay with body tracking</p>
+              <video
+                src={recordedVideoUrl}
+                controls
+                playsInline
+                className="w-full rounded-lg bg-black"
+              />
+              <a
+                href={recordedVideoUrl}
+                download={`gait-${sessionId ?? "session"}-${Date.now()}.${recordedMimeType.includes("mp4") ? "mp4" : "webm"}`}
+                className="mt-3 block text-center text-xs text-green-400 active:text-green-500"
+              >
+                Save video to device
+              </a>
+              <p className="text-[10px] text-gray-500 mt-2 text-center">
+                Stored only on this device. Not uploaded.
+              </p>
+            </div>
+          )}
 
           {/* Join code for second device */}
           {joinCode && (
