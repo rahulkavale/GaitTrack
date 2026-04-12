@@ -11,6 +11,7 @@ import {
   saveRecording,
   consolidateSessionMetrics,
 } from "@/lib/db";
+import { putVideo } from "@/lib/videoStore";
 import type { PoseFrame, FrameMetrics } from "@/lib/types";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -58,7 +59,6 @@ export default function RecordPage({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
 
   const metricsUpdateCounter = useRef(0);
@@ -172,7 +172,12 @@ export default function RecordPage({
           "video/mp4",
         ];
         const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) ?? "";
-        const mr = new MediaRecorder(canvasStream, mimeType ? { mimeType } : undefined);
+        const mr = new MediaRecorder(canvasStream, {
+          ...(mimeType ? { mimeType } : {}),
+          // ~600kbps is plenty for a stick-figure overlay at 480p and keeps
+          // a 30s clip under ~2MB so IndexedDB storage stays bounded.
+          videoBitsPerSecond: 600_000,
+        });
         recordedChunksRef.current = [];
         mr.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
@@ -191,7 +196,8 @@ export default function RecordPage({
     setIsRecording(false);
     setIsSaving(true);
 
-    // Finalize the canvas MediaRecorder and build a local blob URL
+    // Finalize the canvas MediaRecorder and assemble a single blob.
+    let videoBlob: Blob | null = null;
     const mr = mediaRecorderRef.current;
     if (mr && mr.state !== "inactive") {
       await new Promise<void>((resolve) => {
@@ -199,13 +205,10 @@ export default function RecordPage({
         mr.stop();
       });
       if (recordedChunksRef.current.length > 0) {
-        const blob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
-        setRecordedVideoUrl(prev => {
-          if (prev) URL.revokeObjectURL(prev);
-          return URL.createObjectURL(blob);
-        });
+        videoBlob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
       }
       mediaRecorderRef.current = null;
+      recordedChunksRef.current = [];
     }
 
     try {
@@ -213,8 +216,33 @@ export default function RecordPage({
       const frames = framesRef.current;
       const fMetrics = frameMetricsRef.current;
       const metrics = computeSessionMetrics(fMetrics, frames, durationMs);
-      await saveRecording(sessionId!, viewAngle, Math.round(durationMs), metrics, frames, fMetrics);
+      const { id: recordingId } = await saveRecording(
+        sessionId!,
+        viewAngle,
+        Math.round(durationMs),
+        metrics,
+        frames,
+        fMetrics,
+      );
       await consolidateSessionMetrics(sessionId!);
+
+      // Persist the video on-device, keyed to the recording we just saved.
+      // Failures here should never block the user from seeing their report.
+      if (videoBlob) {
+        try {
+          await putVideo({
+            recordingId,
+            patientId,
+            sessionId: sessionId!,
+            mimeType: recordedMimeType,
+            blob: videoBlob,
+            createdAt: Date.now(),
+          });
+        } catch (err) {
+          console.warn("Video persist failed:", err);
+        }
+      }
+
       setRecordingCount(c => c + 1);
       setShowDone(true);
       cancelAnimationFrame(animationRef.current);
@@ -225,7 +253,7 @@ export default function RecordPage({
     } finally {
       setIsSaving(false);
     }
-  }, [sessionId, viewAngle, recordedMimeType]);
+  }, [sessionId, viewAngle, recordedMimeType, patientId]);
 
   // Effects
   useEffect(() => {
@@ -243,13 +271,6 @@ export default function RecordPage({
       if (mr && mr.state !== "inactive") mr.stop();
     };
   }, []);
-
-  // Revoke any held blob URL when it changes or on unmount
-  useEffect(() => {
-    return () => {
-      if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
-    };
-  }, [recordedVideoUrl]);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -281,30 +302,6 @@ export default function RecordPage({
           <p className="text-sm text-gray-400 mb-6">
             {recordingCount} recording{recordingCount !== 1 ? "s" : ""} in this session.
           </p>
-
-          {/* On-device video replay with body tracking overlay.
-              Not uploaded — lives only as a blob URL until the page is closed. */}
-          {recordedVideoUrl && (
-            <div className="bg-gray-800 rounded-xl p-3 mb-6 text-left">
-              <p className="text-xs text-gray-400 mb-2">Replay with body tracking</p>
-              <video
-                src={recordedVideoUrl}
-                controls
-                playsInline
-                className="w-full rounded-lg bg-black"
-              />
-              <a
-                href={recordedVideoUrl}
-                download={`gait-${sessionId ?? "session"}-${Date.now()}.${recordedMimeType.includes("mp4") ? "mp4" : "webm"}`}
-                className="mt-3 block text-center text-xs text-green-400 active:text-green-500"
-              >
-                Save video to device
-              </a>
-              <p className="text-[10px] text-gray-500 mt-2 text-center">
-                Stored only on this device. Not uploaded.
-              </p>
-            </div>
-          )}
 
           {/* Join code for second device */}
           {joinCode && (

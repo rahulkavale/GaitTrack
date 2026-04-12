@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { getSession, updateSessionNotes, deleteSession } from "@/lib/db";
 import { GaitReport } from "@/components/GaitReport";
+import { RecordingVideo } from "@/components/RecordingVideo";
 import { reconcileViews } from "@/lib/reconcile-views";
 import type { SessionMetrics } from "@/lib/types";
 
@@ -203,6 +204,25 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
             Side view for joint angles, front view for lateral movement.
           </div>
         )}
+
+        {/* On-device video replay(s) for the current tab */}
+        {activeTab === "reconciled"
+          ? recordings.map((rec) => (
+              <RecordingVideo
+                key={rec.id}
+                recordingId={rec.id}
+                label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
+              />
+            ))
+          : (() => {
+              const rec = recordings.find(r => r.view_angle === activeTab);
+              return rec ? (
+                <RecordingVideo
+                  recordingId={rec.id}
+                  label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
+                />
+              ) : null;
+            })()}
 
         {/* Gait Report */}
         {activeMetrics ? (
