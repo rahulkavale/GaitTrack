@@ -4,9 +4,11 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { drawStickFigure } from "@/components/StickFigure";
 import { MetricsPanel } from "@/components/MetricsPanel";
+import { RecordingVideo } from "@/components/RecordingVideo";
 import { SetupGuide } from "@/components/SetupGuide";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
 import { GaitReport } from "@/components/GaitReport";
+import { putVideo } from "@/lib/videoStore";
 import type { PoseFrame, FrameMetrics, SessionMetrics } from "@/lib/types";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -20,15 +22,21 @@ export default function TryRecordPage() {
   const startTimeRef = useRef<number>(0);
   const framesRef = useRef<PoseFrame[]>([]);
   const frameMetricsRef = useRef<FrameMetrics[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const [showGuide, setShowGuide] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentMetrics, setCurrentMetrics] = useState<FrameMetrics | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [sessionResult, setSessionResult] = useState<SessionMetrics | null>(null);
+  const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<"analysis" | "replay">("analysis");
 
   const metricsUpdateCounter = useRef(0);
 
@@ -141,19 +149,88 @@ export default function TryRecordPage() {
     setIsRecording(true);
     setCurrentMetrics(null);
     setElapsedSeconds(0);
+    setRecordingId(null);
+
+    const canvas = canvasRef.current;
+    const captureStream =
+      canvas && typeof canvas.captureStream === "function"
+        ? canvas.captureStream.bind(canvas)
+        : null;
+    const recordingStream = captureStream?.(30) ?? streamRef.current;
+
+    if (recordingStream && typeof MediaRecorder !== "undefined") {
+      try {
+        const candidates = [
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+          "video/mp4",
+        ];
+        const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+        const mediaRecorder = new MediaRecorder(recordingStream, {
+          ...(mimeType ? { mimeType } : {}),
+          videoBitsPerSecond: 600_000,
+        });
+        recordedChunksRef.current = [];
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) recordedChunksRef.current.push(event.data);
+        };
+        mediaRecorderRef.current = mediaRecorder;
+        setRecordedMimeType(mimeType || "video/webm");
+        mediaRecorder.start(1000);
+      } catch (err) {
+        console.warn("Video recording unavailable:", err);
+        mediaRecorderRef.current = null;
+      }
+    }
   }, []);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     setIsRecording(false);
+    setIsSaving(true);
     cancelAnimationFrame(animationRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
+
+    let videoBlob: Blob | null = null;
+    const mediaRecorder = mediaRecorderRef.current;
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      await new Promise<void>((resolve) => {
+        mediaRecorder.onstop = () => resolve();
+        mediaRecorder.stop();
+      });
+      if (recordedChunksRef.current.length > 0) {
+        videoBlob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
+      }
+      mediaRecorderRef.current = null;
+      recordedChunksRef.current = [];
+    }
 
     const durationMs = performance.now() - startTimeRef.current;
     const frames = framesRef.current;
     const fMetrics = frameMetricsRef.current;
     const metrics = computeSessionMetrics(fMetrics, frames, durationMs);
+    const localRecordingId = crypto.randomUUID();
+
+    if (videoBlob) {
+      try {
+        await putVideo({
+          recordingId: localRecordingId,
+          patientId: "try-demo",
+          sessionId: "try-demo",
+          mimeType: recordedMimeType,
+          blob: videoBlob,
+          createdAt: Date.now(),
+        });
+        setRecordingId(localRecordingId);
+      } catch (err) {
+        console.warn("Video persist failed:", err);
+      }
+    }
+
     setSessionResult(metrics);
-  }, []);
+    setActiveSection("analysis");
+    setIsSaving(false);
+  }, [recordedMimeType]);
 
   useEffect(() => {
     if (!isLoading && !showGuide && !cameraError && landmarkerRef.current && !sessionResult) {
@@ -166,6 +243,8 @@ export default function TryRecordPage() {
     return () => {
       cancelAnimationFrame(animationRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      const mediaRecorder = mediaRecorderRef.current;
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
     };
   }, []);
 
@@ -197,8 +276,37 @@ export default function TryRecordPage() {
         <p className="text-sm text-gray-400 mb-6">
           Comprehensive analysis of the recorded walking session.
         </p>
+        <div className="bg-gray-900 border border-white/10 rounded-xl p-4 mb-4 text-sm text-gray-300">
+          Replay is stored only on this device in local browser storage. It is not uploaded.
+        </div>
+        <div className="flex gap-1 bg-gray-900 rounded-xl p-1 mb-4">
+          <button
+            onClick={() => setActiveSection("analysis")}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
+              activeSection === "analysis" ? "bg-green-600 text-white" : "text-gray-400"
+            }`}
+          >
+            Analysis
+          </button>
+          <button
+            onClick={() => setActiveSection("replay")}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
+              activeSection === "replay" ? "bg-green-600 text-white" : "text-gray-400"
+            }`}
+          >
+            Replay
+          </button>
+        </div>
 
-        <GaitReport metrics={sessionResult} frameMetrics={frameMetricsRef.current} />
+        {activeSection === "analysis" ? (
+          <GaitReport metrics={sessionResult} frameMetrics={frameMetricsRef.current} />
+        ) : recordingId ? (
+          <RecordingVideo recordingId={recordingId} label="This device's replay" />
+        ) : (
+          <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-400">
+            Replay is not available for this capture on this device.
+          </div>
+        )}
 
         <div className="mt-6">
         {/* Signup prompt */}
@@ -222,6 +330,7 @@ export default function TryRecordPage() {
           <button
             onClick={() => {
               setSessionResult(null);
+              setRecordingId(null);
               setShowGuide(true);
             }}
             className="flex-1 bg-gray-800 text-white py-3 rounded-xl text-sm active:bg-gray-700"
@@ -253,10 +362,16 @@ export default function TryRecordPage() {
           ref={canvasRef}
           className="absolute inset-0 w-full h-full object-contain"
         />
+        <div className="absolute top-20 left-4 right-4 z-10">
+          <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
+            Demo replay is recorded on this device only and stored locally in this browser. Nothing is uploaded.
+          </div>
+        </div>
         <MetricsPanel
           metrics={currentMetrics}
           isRecording={isRecording}
           elapsedSeconds={elapsedSeconds}
+          recordingMode={isSaving ? "saving" : isRecording ? "recording" : "idle"}
         />
       </div>
 
@@ -276,6 +391,11 @@ export default function TryRecordPage() {
           <div className="flex flex-col items-center gap-2">
             <div className="w-16 h-16 rounded-full border-4 border-gray-600 border-t-green-500 animate-spin" />
             <span className="text-xs text-gray-400">{loadingStatus}</span>
+          </div>
+        ) : isSaving ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-16 h-16 rounded-full border-4 border-gray-600 border-t-blue-500 animate-spin" />
+            <span className="text-xs text-gray-400">Saving...</span>
           </div>
         ) : isRecording ? (
           <button
