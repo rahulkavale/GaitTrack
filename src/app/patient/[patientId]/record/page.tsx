@@ -162,9 +162,16 @@ export default function RecordPage({
     // The video stays entirely on-device — chunks are held in memory and exposed
     // via a blob URL on the done screen for replay/download.
     const canvas = canvasRef.current;
-    if (canvas && typeof MediaRecorder !== "undefined") {
+    const captureStream =
+      canvas && typeof canvas.captureStream === "function"
+        ? canvas.captureStream.bind(canvas)
+        : null;
+    const recordingStream =
+      captureStream?.(30) ??
+      streamRef.current;
+
+    if (recordingStream && typeof MediaRecorder !== "undefined") {
       try {
-        const canvasStream = canvas.captureStream(30);
         const candidates = [
           "video/webm;codecs=vp9",
           "video/webm;codecs=vp8",
@@ -172,7 +179,7 @@ export default function RecordPage({
           "video/mp4",
         ];
         const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) ?? "";
-        const mr = new MediaRecorder(canvasStream, {
+        const mr = new MediaRecorder(recordingStream, {
           ...(mimeType ? { mimeType } : {}),
           // ~600kbps is plenty for a stick-figure overlay at 480p and keeps
           // a 30s clip under ~2MB so IndexedDB storage stays bounded.
@@ -186,7 +193,7 @@ export default function RecordPage({
         setRecordedMimeType(mimeType || "video/webm");
         mr.start(1000);
       } catch (err) {
-        console.warn("Canvas recording unavailable:", err);
+        console.warn("Video recording unavailable:", err);
         mediaRecorderRef.current = null;
       }
     }

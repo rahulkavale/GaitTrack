@@ -7,6 +7,7 @@ import { MetricsPanel } from "@/components/MetricsPanel";
 import { SetupGuide } from "@/components/SetupGuide";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
 import { saveRecording, consolidateSessionMetrics, getSession } from "@/lib/db";
+import { putVideo } from "@/lib/videoStore";
 import type { PoseFrame, FrameMetrics } from "@/lib/types";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -30,6 +31,7 @@ export default function JoinRecordPage({
   const [phase, setPhase] = useState<"angle-select" | "guide" | "recording" | "done">("angle-select");
   const [viewAngle, setViewAngle] = useState<ViewAngle>("front");
   const [existingAngles, setExistingAngles] = useState<string[]>([]);
+  const [patientId, setPatientId] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +41,8 @@ export default function JoinRecordPage({
   const startTimeRef = useRef<number>(0);
   const framesRef = useRef<PoseFrame[]>([]);
   const frameMetricsRef = useRef<FrameMetrics[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
@@ -47,6 +51,7 @@ export default function JoinRecordPage({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
 
   const metricsUpdateCounter = useRef(0);
 
@@ -57,6 +62,7 @@ export default function JoinRecordPage({
         const recordings = (s.recordings || []) as Array<{ view_angle: string }>;
         const angles = recordings.map(r => r.view_angle);
         setExistingAngles(angles);
+        setPatientId((s as { patient_id?: string }).patient_id ?? null);
         // Suggest an angle not yet recorded
         if (angles.includes("side-left") || angles.includes("side-right")) {
           setViewAngle("front");
@@ -137,16 +143,89 @@ export default function JoinRecordPage({
     setIsRecording(true);
     setCurrentMetrics(null);
     setElapsedSeconds(0);
+
+    const canvas = canvasRef.current;
+    const captureStream =
+      canvas && typeof canvas.captureStream === "function"
+        ? canvas.captureStream.bind(canvas)
+        : null;
+    const recordingStream =
+      captureStream?.(30) ??
+      streamRef.current;
+
+    if (recordingStream && typeof MediaRecorder !== "undefined") {
+      try {
+        const candidates = [
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+          "video/mp4",
+        ];
+        const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+        const mediaRecorder = new MediaRecorder(recordingStream, {
+          ...(mimeType ? { mimeType } : {}),
+          videoBitsPerSecond: 600_000,
+        });
+        recordedChunksRef.current = [];
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) recordedChunksRef.current.push(event.data);
+        };
+        mediaRecorderRef.current = mediaRecorder;
+        setRecordedMimeType(mimeType || "video/webm");
+        mediaRecorder.start(1000);
+      } catch (err) {
+        console.warn("Video recording unavailable:", err);
+        mediaRecorderRef.current = null;
+      }
+    }
   };
 
   const stopRecordingCapture = async () => {
     setIsRecording(false);
     setIsSaving(true);
+
+    let videoBlob: Blob | null = null;
+    const mediaRecorder = mediaRecorderRef.current;
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      await new Promise<void>((resolve) => {
+        mediaRecorder.onstop = () => resolve();
+        mediaRecorder.stop();
+      });
+      if (recordedChunksRef.current.length > 0) {
+        videoBlob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
+      }
+      mediaRecorderRef.current = null;
+      recordedChunksRef.current = [];
+    }
+
     try {
       const durationMs = performance.now() - startTimeRef.current;
       const metrics = computeSessionMetrics(frameMetricsRef.current, framesRef.current, durationMs);
-      await saveRecording(sessionId, viewAngle, durationMs, metrics, framesRef.current, frameMetricsRef.current);
+      const { id: recordingId } = await saveRecording(
+        sessionId,
+        viewAngle,
+        durationMs,
+        metrics,
+        framesRef.current,
+        frameMetricsRef.current
+      );
       await consolidateSessionMetrics(sessionId);
+
+      if (videoBlob && patientId) {
+        try {
+          await putVideo({
+            recordingId,
+            patientId,
+            sessionId,
+            mimeType: recordedMimeType,
+            blob: videoBlob,
+            createdAt: Date.now(),
+          });
+        } catch (err) {
+          console.warn("Video persist failed:", err);
+        }
+      }
+
       cancelAnimationFrame(animationRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
       setPhase("done");
@@ -167,6 +246,8 @@ export default function JoinRecordPage({
     return () => {
       cancelAnimationFrame(animationRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
+      const mediaRecorder = mediaRecorderRef.current;
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
     };
   }, []);
 

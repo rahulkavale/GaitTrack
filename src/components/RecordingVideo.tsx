@@ -18,9 +18,13 @@ export function RecordingVideo({ recordingId, label }: Props) {
   useEffect(() => {
     let revoked = false;
     let objectUrl: string | null = null;
+    setMissing(false);
+    setUrl(null);
+    setBlob(null);
+    setShareError(null);
     getVideo(recordingId)
       .then((rec) => {
-        if (!rec) {
+        if (!rec || rec.blob.size === 0) {
           if (!revoked) setMissing(true);
           return;
         }
@@ -91,6 +95,7 @@ export function RecordingVideo({ recordingId, label }: Props) {
         src={url}
         controls
         playsInline
+        preload="metadata"
         className="w-full rounded-lg bg-black"
       />
       <div className="flex gap-2 mt-3">

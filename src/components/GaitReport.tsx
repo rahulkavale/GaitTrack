@@ -256,10 +256,7 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
                   <span className={`text-sm font-medium ${SEV_COLORS[p.severity]}`}>{p.name}</span>
                   <span className="text-xs text-gray-500 ml-auto">{p.severity}</span>
                 </div>
-                <p className="text-xs text-gray-300 mb-1">{p.clinicalDescription}</p>
-                {p.suggestion && (
-                  <p className="text-xs text-blue-300 italic">{p.suggestion}</p>
-                )}
+                <p className="text-xs text-gray-300">{p.clinicalDescription}</p>
               </div>
             ))}
           </div>
