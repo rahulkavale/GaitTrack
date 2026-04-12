@@ -205,24 +205,27 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
           </div>
         )}
 
-        {/* On-device video replay(s) for the current tab */}
-        {activeTab === "reconciled"
-          ? recordings.map((rec) => (
+        {/* On-device video replay(s) — always render a section so we can
+            see whether the new bundle shipped and whether the branch matches. */}
+        <div className="bg-gray-900 rounded-xl p-3 space-y-3">
+          <p className="text-xs text-gray-500">
+            Recordings ({recordings.length}) · tab: {activeTab}
+          </p>
+          {recordings.length === 0 && (
+            <p className="text-xs text-gray-500">No recordings in this session.</p>
+          )}
+          {recordings.map((rec) => {
+            const show = activeTab === "reconciled" || activeTab === rec.view_angle;
+            if (!show) return null;
+            return (
               <RecordingVideo
                 key={rec.id}
                 recordingId={rec.id}
                 label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
               />
-            ))
-          : (() => {
-              const rec = recordings.find(r => r.view_angle === activeTab);
-              return rec ? (
-                <RecordingVideo
-                  recordingId={rec.id}
-                  label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
-                />
-              ) : null;
-            })()}
+            );
+          })}
+        </div>
 
         {/* Gait Report */}
         {activeMetrics ? (
