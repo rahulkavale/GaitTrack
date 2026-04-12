@@ -86,6 +86,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
   const [session, setSession] = useState<SessionData | null>(null);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState<"analysis" | "replay">("analysis");
   const [activeTab, setActiveTab] = useState<"reconciled" | string>("reconciled");
 
   useEffect(() => {
@@ -172,6 +173,25 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
       </div>
 
       <div className="p-4 space-y-4">
+        <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+          <button
+            onClick={() => setActiveSection("analysis")}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
+              activeSection === "analysis" ? "bg-green-600 text-white" : "text-gray-400"
+            }`}
+          >
+            Analysis
+          </button>
+          <button
+            onClick={() => setActiveSection("replay")}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
+              activeSection === "replay" ? "bg-green-600 text-white" : "text-gray-400"
+            }`}
+          >
+            Replay
+          </button>
+        </div>
+
         {/* View toggle tabs */}
         {hasMultipleAngles && (
           <div className="flex gap-1 bg-gray-900 rounded-xl p-1 overflow-x-auto">
@@ -205,34 +225,41 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
           </div>
         )}
 
-        {/* On-device video replay(s) — always render a section so we can
-            see whether the new bundle shipped and whether the branch matches. */}
-        <div className="bg-gray-900 rounded-xl p-3 space-y-3">
-          <p className="text-xs text-gray-500">
-            Recordings ({recordings.length}) · tab: {activeTab}
-          </p>
-          {recordings.length === 0 && (
-            <p className="text-xs text-gray-500">No recordings in this session.</p>
-          )}
-          {recordings.map((rec) => {
-            const show = activeTab === "reconciled" || activeTab === rec.view_angle;
-            if (!show) return null;
-            return (
-              <RecordingVideo
-                key={rec.id}
-                recordingId={rec.id}
-                label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
-              />
-            );
-          })}
-        </div>
+        {activeSection === "analysis" && (
+          <>
+            {/* Gait Report */}
+            {activeMetrics ? (
+              <GaitReport metrics={activeMetrics} />
+            ) : (
+              <div className="bg-gray-800 rounded-xl p-6 text-center text-gray-400">
+                No metrics available for this view.
+              </div>
+            )}
+          </>
+        )}
 
-        {/* Gait Report */}
-        {activeMetrics ? (
-          <GaitReport metrics={activeMetrics} />
-        ) : (
-          <div className="bg-gray-800 rounded-xl p-6 text-center text-gray-400">
-            No metrics available for this view.
+        {activeSection === "replay" && (
+          <div className="bg-gray-900 rounded-xl p-3 space-y-3">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
+              Replay videos are stored only on the recording device in local browser storage. They are never uploaded to cloud storage, so they may be unavailable on a different phone or browser.
+            </div>
+            <p className="text-xs text-gray-500">
+              Replay for {activeTab === "reconciled" ? "all recorded angles" : VIEW_LABELS[activeTab] ?? activeTab}
+            </p>
+            {recordings.length === 0 && (
+              <p className="text-xs text-gray-500">No recordings in this session.</p>
+            )}
+            {recordings.map((rec) => {
+              const show = activeTab === "reconciled" || activeTab === rec.view_angle;
+              if (!show) return null;
+              return (
+                <RecordingVideo
+                  key={rec.id}
+                  recordingId={rec.id}
+                  label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
+                />
+              );
+            })}
           </div>
         )}
 

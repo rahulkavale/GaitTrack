@@ -259,6 +259,9 @@ export default function JoinRecordPage({
         <p className="text-sm text-gray-400 mb-4">
           Pick which angle you&apos;ll be recording from.
         </p>
+        <div className="bg-gray-900 border border-white/10 rounded-xl p-3 mb-4 text-xs text-gray-300">
+          Replay video is saved only on the device that records it. It stays in local browser storage and is not uploaded.
+        </div>
 
         {existingAngles.length > 0 && (
           <p className="text-xs text-green-400 mb-4">
@@ -314,6 +317,12 @@ export default function JoinRecordPage({
             Your {VIEW_LABELS[viewAngle]} recording has been added to the session.
             The session owner can see the combined analysis.
           </p>
+          <div className="bg-gray-900 border border-white/10 rounded-xl p-4 mb-6 text-left">
+            <p className="text-sm text-white">Replay remains on this recording device</p>
+            <p className="text-xs text-gray-400 mt-1">
+              The local replay will only be visible from this same device and browser because the video is not uploaded.
+            </p>
+          </div>
           <button
             onClick={() => router.push("/")}
             className="bg-gray-800 text-white px-6 py-3 rounded-xl active:bg-gray-700"
@@ -331,7 +340,17 @@ export default function JoinRecordPage({
       <div className="relative flex-1">
         <video ref={videoRef} playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-0" />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain" />
-        <MetricsPanel metrics={currentMetrics} isRecording={isRecording} elapsedSeconds={elapsedSeconds} />
+        <MetricsPanel
+          metrics={currentMetrics}
+          isRecording={isRecording}
+          elapsedSeconds={elapsedSeconds}
+          recordingMode={isSaving ? "saving" : isRecording ? "recording" : "idle"}
+        />
+        <div className="absolute top-20 left-4 right-4 z-10">
+          <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
+            This recording&apos;s replay is saved only on this device. It is kept in local browser storage and not uploaded.
+          </div>
+        </div>
         <div className="absolute bottom-4 left-4 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
           {VIEW_LABELS[viewAngle]} (joined)
         </div>

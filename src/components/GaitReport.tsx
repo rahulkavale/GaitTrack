@@ -202,10 +202,10 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
             ))}
           </div>
 
-          {/* Detected issues in plain language */}
+          {/* Observed movement features in plain language */}
           {detectedPatterns.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-sm font-medium text-gray-400">What we noticed</h2>
+              <h2 className="text-sm font-medium text-gray-400">Observed movement features</h2>
               {detectedPatterns.map((p) => (
                 <div key={p.name} className={`rounded-xl p-3 border ${SEV_BG[p.severity]}`}>
                   <div className="flex items-center gap-1 mb-1">
@@ -221,7 +221,7 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
 
           {detectedPatterns.length === 0 && (
             <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-4 text-center">
-              <p className="text-sm text-green-300">No concerning gait patterns detected</p>
+              <p className="text-sm text-green-300">No notable movement features were flagged in this capture</p>
             </div>
           )}
 
@@ -246,9 +246,9 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
       {/* ======== CLINICAL VIEW ======== */}
       {view === "clinical" && (
         <div className="space-y-4">
-          {/* Gait pattern flags */}
+          {/* Observed movement features */}
           <div className="space-y-2">
-            <h2 className="text-sm font-medium text-gray-400">Gait Pattern Assessment</h2>
+            <h2 className="text-sm font-medium text-gray-400">Observed Movement Features</h2>
             {patterns.map((p) => (
               <div key={p.name} className={`rounded-xl p-3 border ${SEV_BG[p.severity]}`}>
                 <div className="flex items-center gap-1 mb-1">

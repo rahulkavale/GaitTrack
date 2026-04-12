@@ -309,6 +309,12 @@ export default function RecordPage({
           <p className="text-sm text-gray-400 mb-6">
             {recordingCount} recording{recordingCount !== 1 ? "s" : ""} in this session.
           </p>
+          <div className="bg-gray-900 border border-white/10 rounded-xl p-4 mb-6 text-left">
+            <p className="text-sm text-white">Replay is stored on this device</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Open the new Replay tab from this same phone or browser to watch the recording. The video is not uploaded to cloud storage.
+            </p>
+          </div>
 
           {/* Join code for second device */}
           {joinCode && (
@@ -345,7 +351,17 @@ export default function RecordPage({
       <div className="relative flex-1">
         <video ref={videoRef} playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-0" />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain" />
-        <MetricsPanel metrics={currentMetrics} isRecording={isRecording} elapsedSeconds={elapsedSeconds} />
+        <MetricsPanel
+          metrics={currentMetrics}
+          isRecording={isRecording}
+          elapsedSeconds={elapsedSeconds}
+          recordingMode={isSaving ? "saving" : isRecording ? "recording" : "idle"}
+        />
+        <div className="absolute top-20 left-4 right-4 z-10">
+          <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
+            Video replay is recorded on this device only and stored locally in this browser. Nothing is uploaded to cloud storage.
+          </div>
+        </div>
 
         {/* Join code shown during recording so second person can join */}
         {joinCode && (
