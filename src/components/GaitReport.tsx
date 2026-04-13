@@ -166,6 +166,22 @@ function confidenceLabel(confidence: SessionMetrics["walkingConfidence"]) {
   }
 }
 
+function MetricConfidence({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "higher" | "moderate" | "exploratory";
+}) {
+  const color =
+    tone === "higher"
+      ? "text-green-400"
+      : tone === "moderate"
+      ? "text-yellow-400"
+      : "text-orange-400";
+  return <p className={`mt-1 text-[11px] ${color}`}>{label}</p>;
+}
+
 // ---- Main component ----
 
 export function GaitReport({
@@ -409,6 +425,7 @@ export function GaitReport({
                   {m.preferredWeightSide === "balanced" ? "balanced" : `favoring ${m.preferredWeightSide}`}
                 </span>
               </div>
+              <MetricConfidence label="Exploratory estimate from stance timing and support bias." tone="exploratory" />
               {onFocusMetric && <ActionButton onClick={() => onFocusMetric("weight_shift")} />}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -418,6 +435,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[leftKneeStatus.severity]}`}>
                     {formatSeverityLabel(leftKneeStatus.severity)}
                   </p>
+                  <MetricConfidence label="Higher confidence from visible joint motion." tone="higher" />
                   {onFocusMetric && <ActionButton onClick={() => onFocusMetric("left_knee_angle")} label="Focus Left Knee" />}
                 </div>
                 <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
@@ -426,6 +444,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[rightKneeStatus.severity]}`}>
                     {formatSeverityLabel(rightKneeStatus.severity)}
                   </p>
+                  <MetricConfidence label="Higher confidence from visible joint motion." tone="higher" />
                   {onFocusMetric && <ActionButton onClick={() => onFocusMetric("right_knee_angle")} label="Focus Right Knee" />}
                 </div>
               </div>
@@ -437,6 +456,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[leftArmStatus.severity]}`}>
                     {formatSeverityLabel(leftArmStatus.severity)}
                   </p>
+                  <MetricConfidence label="Higher confidence when the arm stays visible." tone="higher" />
                   {onFocusMetric && <ActionButton onClick={() => onFocusMetric("left_arm_swing")} label="Focus Left Arm" />}
                 </div>
                 <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
@@ -445,6 +465,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[rightArmStatus.severity]}`}>
                     {formatSeverityLabel(rightArmStatus.severity)}
                   </p>
+                  <MetricConfidence label="Higher confidence when the arm stays visible." tone="higher" />
                   {onFocusMetric && <ActionButton onClick={() => onFocusMetric("right_arm_swing")} label="Focus Right Arm" />}
                 </div>
               </div>
@@ -462,6 +483,7 @@ export function GaitReport({
                   {m.fallRiskDetected ? `${fallSeverityLabel} ${directionLabel(m.fallRiskDirection)}` : "not flagged"}
                 </span>
               </div>
+              <MetricConfidence label="Exploratory estimate from trunk lean and forward posture." tone="exploratory" />
               {onFocusMetric && <ActionButton onClick={() => onFocusMetric("fall_risk")} />}
             </div>
           </div>
@@ -492,6 +514,7 @@ export function GaitReport({
                 <div className="mt-1 text-xs text-gray-400">
                   Left clearance {m.leftToeClearance.toFixed(3)}, right clearance {m.rightToeClearance.toFixed(3)}.
                 </div>
+                <MetricConfidence label="Moderate confidence from foot-height tracking." tone="moderate" />
                 {onFocusMetric && (
                   <div className="mt-1 flex gap-2">
                     <ActionButton onClick={() => onFocusMetric("left_toe_clearance")} label="Focus Left Toe" />
@@ -503,6 +526,7 @@ export function GaitReport({
                 <div className="text-xs uppercase tracking-wide text-gray-500">Fatigue drift</div>
                 <div className="mt-1 text-sm text-white">{m.fatigueObserved ? "movement changed later in the clip" : "no strong fatigue change flagged"}</div>
                 <div className="mt-1 text-xs text-gray-400">{fatiguePercent}% drift based on posture and foot-clearance changes.</div>
+                <MetricConfidence label="Exploratory estimate from within-session drift." tone="exploratory" />
                 {onFocusMetric && <ActionButton onClick={() => onFocusMetric("fatigue_drift")} label="Watch Fatigue Replay" />}
               </div>
             </div>
@@ -649,6 +673,7 @@ export function GaitReport({
                 <div className={`mt-1 text-xs ${m.leftHeelStrikePresent ? "text-green-400" : "text-yellow-400"}`}>
                   {m.leftHeelStrikePresent ? "heel-strike signal present" : "heel-strike signal limited"}
                 </div>
+                <MetricConfidence label="Moderate confidence from foot-height tracking." tone="moderate" />
                 {onFocusMetric && <ActionButton onClick={() => onFocusMetric("left_toe_clearance")} label="Focus Left Toe" />}
               </div>
               <div className="rounded-lg border border-white/5 bg-gray-900/60 p-3">
@@ -657,6 +682,7 @@ export function GaitReport({
                 <div className={`mt-1 text-xs ${m.rightHeelStrikePresent ? "text-green-400" : "text-yellow-400"}`}>
                   {m.rightHeelStrikePresent ? "heel-strike signal present" : "heel-strike signal limited"}
                 </div>
+                <MetricConfidence label="Moderate confidence from foot-height tracking." tone="moderate" />
                 {onFocusMetric && <ActionButton onClick={() => onFocusMetric("right_toe_clearance")} label="Focus Right Toe" />}
               </div>
             </div>
@@ -700,6 +726,7 @@ export function GaitReport({
                 {fatiguePercent}% {m.fatigueObserved ? "observed" : "stable"}
               </span>
             </div>
+            <MetricConfidence label="Pelvis is exploratory from front-view alignment; fatigue is exploratory from within-session drift." tone="exploratory" />
             {onFocusMetric && (
               <div className="mt-2 flex gap-2">
                 <ActionButton onClick={() => onFocusMetric("pelvic_obliquity")} label="Watch Pelvis Replay" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -91,6 +91,17 @@ function describeSeverity(metricLabel: string, severity: "good" | "watch" | "con
   }
 }
 
+function confidenceMeta(confidence: ReturnType<typeof getMetricReplayConfig>["confidence"]) {
+  switch (confidence) {
+    case "higher":
+      return { label: "Higher confidence", color: "text-green-300", description: "This metric is closely tied to visible joint motion and tends to be more reliable from video." };
+    case "moderate":
+      return { label: "Moderate confidence", color: "text-yellow-300", description: "This metric is usually useful from video, but camera angle and tracking quality matter more." };
+    case "exploratory":
+      return { label: "Exploratory estimate", color: "text-orange-300", description: "This metric is a heuristic video estimate and should be used mainly for trend tracking, not firm interpretation." };
+  }
+}
+
 export function MetricReplay({
   recordingId,
   frameData,
@@ -151,6 +162,7 @@ export function MetricReplay({
   }, [visibleMetrics, selectedMetricId]);
 
   const selectedMetric = getMetricReplayConfig(selectedMetricId);
+  const selectedMetricConfidence = confidenceMeta(selectedMetric.confidence);
   const selectedMetricDefinition = getMetricDefinition(selectedMetricId);
   const currentMetric = frameMetrics[currentFrameIndex];
   const computedValue = currentMetric ? getMetricValue(selectedMetricId, currentMetric) : 0;
@@ -248,6 +260,18 @@ export function MetricReplay({
       end: chartData[bestEnd]?.time ?? chartData[bestStart]?.time ?? 0,
     };
   }, [chartData, selectedMetric.normalMax, selectedMetric.normalMin]);
+
+  const seekVideo = useCallback((timeSeconds: number) => {
+    const video = videoRef.current;
+    if (!video || Number.isNaN(timeSeconds)) return;
+    video.currentTime = Math.max(0, Math.min(video.duration || timeSeconds, timeSeconds));
+    void video.play().catch(() => {});
+    captureEvent("focused_replay_scrubbed", {
+      recording_id: recordingId,
+      metric_id: selectedMetricId,
+      scrub_time_seconds: Math.round(timeSeconds * 10) / 10,
+    });
+  }, [recordingId, selectedMetricId]);
 
   useEffect(() => {
     if (!url) return;
@@ -360,6 +384,9 @@ export function MetricReplay({
           <p className="text-xs text-gray-400 mt-1">
             Video stays local on this device. The overlay is drawn in-browser from saved pose frames and metric values.
           </p>
+          <p className={`mt-2 text-xs font-medium ${selectedMetricConfidence.color}`}>
+            {selectedMetricConfidence.label}
+          </p>
         </div>
         <div
           className="rounded-full px-3 py-1 text-xs font-medium"
@@ -413,12 +440,21 @@ export function MetricReplay({
           <div className="mt-2 text-xs text-gray-400">
             Focus area is highlighted directly on the replay using green, yellow, and red severity bands.
           </div>
+          <div className={`mt-2 text-[11px] ${selectedMetricConfidence.color}`}>
+            {selectedMetricConfidence.description}
+          </div>
         </div>
 
         <div className="rounded-xl bg-gray-800 p-3">
           <div className="mb-2 text-xs text-gray-400">Metric trace</div>
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={chartData}>
+            <LineChart
+              data={chartData}
+              onClick={(state) => {
+                const time = typeof state?.activeLabel === "number" ? state.activeLabel : undefined;
+                if (time != null) seekVideo(time);
+              }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#6B7280" }} />
               <YAxis tick={{ fontSize: 10, fill: "#6B7280" }} />
@@ -450,6 +486,7 @@ export function MetricReplay({
               />
             </LineChart>
           </ResponsiveContainer>
+          <p className="mt-2 text-[11px] text-gray-500">Tap the trace to jump the replay to that moment.</p>
         </div>
       </div>
 
@@ -473,6 +510,14 @@ export function MetricReplay({
               ? `${abnormalWindow.start.toFixed(1)}s to ${abnormalWindow.end.toFixed(1)}s shows the largest sustained deviation from the current expected range.`
               : "No sustained out-of-range window was detected for this metric in the current replay."}
           </p>
+          {abnormalWindow && (
+            <button
+              onClick={() => seekVideo(abnormalWindow.start)}
+              className="mt-3 rounded-full bg-gray-700 px-3 py-1.5 text-[11px] font-medium text-white active:bg-gray-600"
+            >
+              Jump To Abnormal Window
+            </button>
+          )}
         </div>
       </div>
 
