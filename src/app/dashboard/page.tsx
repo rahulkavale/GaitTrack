@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getPatients, createPatient, deletePatient, getPendingInvitations, acceptInvitation } from "@/lib/db";
+import { captureEvent, identifyUser, resetAnalytics } from "@/lib/analytics/posthog";
 
 interface Patient {
   id: string;
@@ -47,6 +48,10 @@ export default function DashboardPage() {
       }
 
       setUserName(user.user_metadata?.name || user.email || "");
+      identifyUser(user.id, {
+        email: user.email ?? "",
+        has_name: Boolean(user.user_metadata?.name),
+      });
 
       const [patientsResult, invitationsResult] = await Promise.allSettled([
         getPatients(user.id),
@@ -91,6 +96,10 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await createPatient(newPatientName.trim());
+    captureEvent("child_profile_created", {
+      source: "dashboard",
+      child_name_length: newPatientName.trim().length,
+    });
     setNewPatientName("");
     setShowAddPatient(false);
     const p = await getPatients(user.id);
@@ -102,6 +111,9 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await acceptInvitation(id);
+    captureEvent("invitation_accepted", {
+      source: "dashboard",
+    });
     const [patientsResult, invitationsResult] = await Promise.allSettled([
       getPatients(user.id),
       getPendingInvitations(),
@@ -115,9 +127,12 @@ export default function DashboardPage() {
   };
 
   const handleDeletePatient = async (patientId: string, patientName: string) => {
-    if (!confirm(`Delete "${patientName}" and all their sessions? This cannot be undone.`)) return;
+    if (!confirm(`Remove "${patientName}"'s profile and all session data? This cannot be undone.`)) return;
     try {
       await deletePatient(patientId);
+      captureEvent("child_profile_deleted", {
+        source: "dashboard",
+      });
       setPatients(prev => prev.filter(p => p.id !== patientId));
     } catch (err) {
       console.error("Failed to delete:", err);
@@ -127,6 +142,10 @@ export default function DashboardPage() {
 
   const handleSignOut = async () => {
     const supabase = createClient();
+    captureEvent("signed_out", {
+      source: "dashboard",
+    });
+    resetAnalytics();
     await supabase.auth.signOut();
     router.push("/");
     router.refresh();
@@ -234,7 +253,7 @@ export default function DashboardPage() {
                   onClick={() => handleDeletePatient(patient.id, patient.name)}
                   className="mt-2 text-xs text-red-400/60 active:text-red-400"
                 >
-                  Delete child and all data
+                  Remove profile and all data
                 </button>
               </div>
             ))}
