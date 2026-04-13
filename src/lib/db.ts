@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
 import { TABLES } from "./tables";
 import type { SessionMetrics } from "./types";
+import {
+  DEFAULT_METRIC_PREFERENCES,
+  mergeMetricPreferences,
+  type MetricPreferences,
+} from "./metric-settings";
 
 const supabase = () => createClient();
 
@@ -62,6 +67,34 @@ export async function deletePatient(patientId: string) {
     .from(TABLES.patients)
     .delete()
     .eq("id", patientId);
+  if (error) throw error;
+}
+
+export async function getMetricPreferences(): Promise<MetricPreferences> {
+  const { data: { user } } = await supabase().auth.getUser();
+  if (!user) return DEFAULT_METRIC_PREFERENCES;
+
+  const { data, error } = await supabase()
+    .from(TABLES.metric_preferences)
+    .select("preferences")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (error) throw error;
+
+  return mergeMetricPreferences((data as { preferences?: Partial<MetricPreferences> } | null)?.preferences ?? null);
+}
+
+export async function saveMetricPreferences(preferences: MetricPreferences) {
+  const { data: { user } } = await supabase().auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase()
+    .from(TABLES.metric_preferences)
+    .upsert({
+      user_id: user.id,
+      preferences,
+      updated_at: new Date().toISOString(),
+    });
   if (error) throw error;
 }
 
@@ -178,7 +211,8 @@ export async function saveRecording(
   durationMs: number,
   metrics: SessionMetrics,
   frameData: unknown[],
-  frameMetrics?: unknown[]
+  frameMetrics?: unknown[],
+  metricSettingsSnapshot?: MetricPreferences
 ) {
   const recordingId = crypto.randomUUID();
   const { error } = await supabase()
@@ -201,6 +235,7 @@ export async function saveRecording(
       frame_data: frameData,
       frame_metrics: frameMetrics ?? null,
       computed_metrics: metrics,
+      metric_settings_snapshot: metricSettingsSnapshot ?? null,
     });
   if (error) throw error;
   return { id: recordingId };

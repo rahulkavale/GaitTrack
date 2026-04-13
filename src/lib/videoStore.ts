@@ -80,6 +80,21 @@ export async function deleteVideo(recordingId: string): Promise<void> {
   }
 }
 
+export async function estimateVideoStorage(): Promise<{
+  usageBytes: number | null;
+  quotaBytes: number | null;
+}> {
+  if (typeof navigator === "undefined" || !("storage" in navigator) || !navigator.storage?.estimate) {
+    return { usageBytes: null, quotaBytes: null };
+  }
+
+  const estimate = await navigator.storage.estimate();
+  return {
+    usageBytes: estimate.usage ?? null,
+    quotaBytes: estimate.quota ?? null,
+  };
+}
+
 async function evictOldest(db: IDBDatabase, patientId: string): Promise<void> {
   const store = tx(db, "readwrite");
   const index = store.index("patientId");

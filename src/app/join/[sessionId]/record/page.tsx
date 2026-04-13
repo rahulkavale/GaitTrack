@@ -6,9 +6,10 @@ import { drawStickFigure } from "@/components/StickFigure";
 import { MetricsPanel } from "@/components/MetricsPanel";
 import { SetupGuide } from "@/components/SetupGuide";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
-import { saveRecording, consolidateSessionMetrics, getSession } from "@/lib/db";
+import { saveRecording, consolidateSessionMetrics, getSession, getMetricPreferences } from "@/lib/db";
 import { putVideo } from "@/lib/videoStore";
 import type { PoseFrame, FrameMetrics } from "@/lib/types";
+import { DEFAULT_METRIC_PREFERENCES, type MetricPreferences } from "@/lib/metric-settings";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
 type ViewAngle = "side-left" | "side-right" | "front" | "back";
@@ -57,6 +58,7 @@ export default function JoinRecordPage({
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
   const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
   const [sourceDurationSeconds, setSourceDurationSeconds] = useState<number | null>(null);
+  const [metricPreferences, setMetricPreferences] = useState<MetricPreferences>(DEFAULT_METRIC_PREFERENCES);
 
   const metricsUpdateCounter = useRef(0);
 
@@ -85,6 +87,12 @@ export default function JoinRecordPage({
       }
     });
   }, [sessionId]);
+
+  useEffect(() => {
+    getMetricPreferences()
+      .then(setMetricPreferences)
+      .catch((err) => console.warn("Failed to load metric preferences:", err));
+  }, []);
 
   const startCamera = useCallback(async () => {
     setIsLoading(true);
@@ -276,7 +284,8 @@ export default function JoinRecordPage({
         durationMs,
         metrics,
         framesRef.current,
-        frameMetricsRef.current
+        frameMetricsRef.current,
+        metricPreferences
       );
       await consolidateSessionMetrics(sessionId);
 

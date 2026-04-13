@@ -159,12 +159,20 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold mb-1">Gait Tracker</h1>
             <p className="text-sm text-gray-400">Hi, {userName}</p>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/settings"
+              className="text-xs text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
+            >
+              Settings
+            </Link>
+            <button
+              onClick={handleSignOut}
+              className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
 

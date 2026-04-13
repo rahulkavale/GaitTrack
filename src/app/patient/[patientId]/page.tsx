@@ -107,6 +107,12 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
           >
             Record Session
           </Link>
+          <Link
+            href="/settings"
+            className="bg-gray-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium text-center active:bg-gray-700"
+          >
+            Settings
+          </Link>
           {sessions.length > 1 && (
             <Link
               href={`/patient/${patientId}/progress`}

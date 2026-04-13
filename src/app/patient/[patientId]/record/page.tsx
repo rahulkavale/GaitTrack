@@ -8,11 +8,13 @@ import { SetupGuide } from "@/components/SetupGuide";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
 import {
   createSession,
+  getMetricPreferences,
   saveRecording,
   consolidateSessionMetrics,
 } from "@/lib/db";
 import { putVideo } from "@/lib/videoStore";
 import type { PoseFrame, FrameMetrics } from "@/lib/types";
+import { DEFAULT_METRIC_PREFERENCES, type MetricPreferences } from "@/lib/metric-settings";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
 type ViewAngle = "side-left" | "side-right" | "front" | "back";
@@ -65,6 +67,7 @@ export default function RecordPage({
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
   const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
   const [sourceDurationSeconds, setSourceDurationSeconds] = useState<number | null>(null);
+  const [metricPreferences, setMetricPreferences] = useState<MetricPreferences>(DEFAULT_METRIC_PREFERENCES);
 
   const metricsUpdateCounter = useRef(0);
 
@@ -95,6 +98,12 @@ export default function RecordPage({
     }
     init();
   }, [patientId]);
+
+  useEffect(() => {
+    getMetricPreferences()
+      .then(setMetricPreferences)
+      .catch((err) => console.warn("Failed to load metric preferences:", err));
+  }, []);
 
   const startCamera = useCallback(async () => {
     setIsLoading(true);
@@ -299,6 +308,7 @@ export default function RecordPage({
         metrics,
         frames,
         fMetrics,
+        metricPreferences,
       );
       await consolidateSessionMetrics(sessionId!);
 
@@ -338,7 +348,7 @@ export default function RecordPage({
     } finally {
       setIsSaving(false);
     }
-  }, [sessionId, viewAngle, recordedMimeType, patientId, sourceMode, uploadedVideoUrl]);
+  }, [sessionId, viewAngle, recordedMimeType, patientId, sourceMode, uploadedVideoUrl, metricPreferences]);
 
   // Effects
   useEffect(() => {

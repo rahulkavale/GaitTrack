@@ -80,6 +80,7 @@ export function classifyRange(value: number, ranges: Record<string, readonly [nu
 // ---- Observed movement feature flags ----
 
 export interface GaitPattern {
+  id: FeatureMetricId;
   name: string;
   detected: boolean;
   severity: Severity;
@@ -105,9 +106,25 @@ export function classifyGaitPatterns(params: {
   stepWidth: number;
   leftPeakKneeExtension: number;       // signed clinical flexion (negative = hyperextension)
   rightPeakKneeExtension: number;
+  featurePreferences?: MetricPreferences["features"];
 }): GaitPattern[] {
   const p = params;
   const patterns: GaitPattern[] = [];
+  const featurePreferences = p.featurePreferences;
+
+  function higherWorseSeverity(value: number, thresholds: { mild: number; moderate: number; severe: number }): Severity {
+    if (value > thresholds.severe) return "severe";
+    if (value > thresholds.moderate) return "moderate";
+    if (value > thresholds.mild) return "mild";
+    return "normal";
+  }
+
+  function lowerWorseSeverity(value: number, thresholds: { mild: number; moderate: number; severe: number }): Severity {
+    if (value < thresholds.severe) return "severe";
+    if (value < thresholds.moderate) return "moderate";
+    if (value < thresholds.mild) return "mild";
+    return "normal";
+  }
 
   // Helper: pick which side is more affected for a "higher = worse" metric
   function worseSide(left: number, right: number, eqTol: number): { side: "left" | "right" | "both"; value: number } {
@@ -129,8 +146,12 @@ export function classifyGaitPatterns(params: {
   const rightCrouch = Math.max(p.rightKneeFlexionAtContact, p.rightKneeFlexionMidStance);
   const crouch = worseSide(leftCrouch, rightCrouch, 5);
   const crouchAngle = crouch.value;
-  const crouchSev = crouchAngle > 30 ? "severe" : crouchAngle > 15 ? "moderate" : crouchAngle > 5 ? "mild" : "normal";
+  const crouchSev = higherWorseSeverity(
+    crouchAngle,
+    featurePreferences?.persistent_knee_bend?.thresholds ?? { mild: 5, moderate: 15, severe: 30 }
+  );
   patterns.push({
+    id: "persistent_knee_bend",
     name: "Persistent Knee Bend",
     detected: crouchSev !== "normal",
     severity: crouchSev,
@@ -148,8 +169,12 @@ export function classifyGaitPatterns(params: {
   // Forefoot-first / plantarflexed landing tendency
   const equinus = worseSideLow(p.leftAnkleAtContact, p.rightAnkleAtContact, 5);
   const equinusVal = equinus.value;
-  const equinusSev = equinusVal < -20 ? "severe" : equinusVal < -10 ? "moderate" : equinusVal < -5 ? "mild" : "normal";
+  const equinusSev = lowerWorseSeverity(
+    equinusVal,
+    featurePreferences?.forefoot_first_landing?.thresholds ?? { mild: -5, moderate: -10, severe: -20 }
+  );
   patterns.push({
+    id: "forefoot_first_landing",
     name: "Forefoot-First Landing",
     detected: equinusSev !== "normal",
     severity: equinusSev,
@@ -167,11 +192,15 @@ export function classifyGaitPatterns(params: {
   // Reduced knee excursion
   const stiff = worseSideLow(p.leftKneeROM, p.rightKneeROM, 8);
   const stiffROM = stiff.value;
-  const stiffSev = stiffROM < 20 ? "severe" : stiffROM < 40 ? "moderate" : stiffROM < 55 ? "mild" : "normal";
+  const stiffSev = lowerWorseSeverity(
+    stiffROM,
+    featurePreferences?.reduced_knee_motion?.thresholds ?? { mild: 55, moderate: 40, severe: 20 }
+  );
   const peakSwing = stiff.side === "left" ? p.peakLeftKneeFlexionSwing
     : stiff.side === "right" ? p.peakRightKneeFlexionSwing
     : Math.min(p.peakLeftKneeFlexionSwing, p.peakRightKneeFlexionSwing);
   patterns.push({
+    id: "reduced_knee_motion",
     name: "Reduced Knee Motion",
     detected: stiffSev !== "normal",
     severity: stiffSev,
@@ -188,10 +217,14 @@ export function classifyGaitPatterns(params: {
   // Lateral trunk lean
   const leanMag = Math.abs(p.trunkLateralLeanSigned);
   const leanDir: "left" | "right" = p.trunkLateralLeanSigned >= 0 ? "right" : "left";
-  const trendSev = leanMag > 12 ? "severe" : leanMag > 7 ? "moderate" : leanMag > 3 ? "mild" : "normal";
+  const trendSev = higherWorseSeverity(
+    leanMag,
+    featurePreferences?.side_lean_of_trunk?.thresholds ?? { mild: 3, moderate: 7, severe: 12 }
+  );
   // Trendelenburg lean indicates weakness on the OPPOSITE (stance) hip when leaning over it.
   // Clinically: trunk leans toward the weak side during single-limb stance on that side.
   patterns.push({
+    id: "side_lean_of_trunk",
     name: "Side Lean of Trunk",
     detected: trendSev !== "normal",
     severity: trendSev,
@@ -207,11 +240,13 @@ export function classifyGaitPatterns(params: {
 
   // Combined crouched and forefoot-first pattern
   const worstAnkle = Math.min(p.leftAnkleAtContact, p.rightAnkleAtContact);
-  const jumpDetected = crouchAngle > 15 && worstAnkle < -5 && p.hipFlexionAtContact > 35;
+  const jumpThresholds = featurePreferences?.combined_bent_knee_forefoot?.thresholds ?? { mild: 15, moderate: 15, severe: 30 };
+  const jumpDetected = crouchAngle > jumpThresholds.mild && worstAnkle < -5 && p.hipFlexionAtContact > 35;
   patterns.push({
+    id: "combined_bent_knee_forefoot",
     name: "Combined Bent-Knee and Forefoot Pattern",
     detected: jumpDetected,
-    severity: jumpDetected ? "moderate" : "normal",
+    severity: jumpDetected ? (crouchAngle > jumpThresholds.severe ? "severe" : "moderate") : "normal",
     clinicalDescription: jumpDetected
       ? "Observed combination of increased knee flexion, forefoot-first landing tendency, and increased hip flexion in the same capture."
       : "No combined bent-knee and forefoot-first pattern observed.",
@@ -224,11 +259,14 @@ export function classifyGaitPatterns(params: {
   // Knee overextension tendency
   const recurv = worseSideLow(p.leftPeakKneeExtension, p.rightPeakKneeExtension, 3);
   const recurvVal = recurv.value;
-  const recurvDetected = recurvVal < -5;
+  const recurvThresholds = featurePreferences?.knee_overextension?.thresholds ?? { mild: -5, moderate: -8, severe: -10 };
+  const recurvSev = lowerWorseSeverity(recurvVal, recurvThresholds);
+  const recurvDetected = recurvSev !== "normal";
   patterns.push({
+    id: "knee_overextension",
     name: "Knee Overextension",
     detected: recurvDetected,
-    severity: recurvDetected ? (recurvVal < -10 ? "severe" : "mild") : "normal",
+    severity: recurvSev,
     clinicalDescription: recurvDetected
       ? `${recurv.side === "both" ? "Both knees show" : `The ${recurv.side} knee shows`} about ${Math.round(Math.abs(recurvVal))}° of overextension during stance-like portions of the capture.`
       : "No clear knee overextension observed.",
@@ -239,11 +277,14 @@ export function classifyGaitPatterns(params: {
   });
 
   // Limited arm swing
-  const guardDetected = p.armSwingRange < 10;
+  const armSwingThresholds = featurePreferences?.limited_arm_swing?.thresholds ?? { mild: 10, moderate: 7, severe: 4 };
+  const guardSev = lowerWorseSeverity(p.armSwingRange, armSwingThresholds);
+  const guardDetected = guardSev !== "normal";
   patterns.push({
+    id: "limited_arm_swing",
     name: "Limited Arm Swing",
     detected: guardDetected,
-    severity: guardDetected ? "mild" : "normal",
+    severity: guardSev,
     clinicalDescription: guardDetected
       ? `Observed arm swing range is about ${Math.round(p.armSwingRange)}°, lower than the current expected range.`
       : `Observed arm swing range is about ${Math.round(p.armSwingRange)}°, within the current expected range.`,
@@ -254,11 +295,14 @@ export function classifyGaitPatterns(params: {
   });
 
   // Narrow base of support
-  const scissorDetected = p.stepWidth < 0.05;
+  const stepWidthThresholds = featurePreferences?.narrow_step_width?.thresholds ?? { mild: 0.08, moderate: 0.05, severe: 0.03 };
+  const scissorSev = lowerWorseSeverity(p.stepWidth, stepWidthThresholds);
+  const scissorDetected = scissorSev !== "normal";
   patterns.push({
+    id: "narrow_step_width",
     name: "Narrow Step Width",
     detected: scissorDetected,
-    severity: scissorDetected ? "moderate" : "normal",
+    severity: scissorSev,
     clinicalDescription: scissorDetected
       ? "Observed step width is narrow, with the legs moving close together in the capture."
       : "Observed step width is within the current expected range.",
@@ -343,3 +387,4 @@ export function parentMetrics(
     },
   ];
 }
+import type { FeatureMetricId, MetricPreferences } from "./metric-settings";

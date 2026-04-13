@@ -10,4 +10,5 @@ export const TABLES = {
   sessions: `${PREFIX}_sessions`,
   recordings: `${PREFIX}_recordings`,
   invitations: `${PREFIX}_invitations`,
+  metric_preferences: `${PREFIX}_metric_preferences`,
 } as const;

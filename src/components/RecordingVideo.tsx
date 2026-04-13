@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getVideo } from "@/lib/videoStore";
+import { deleteVideo, estimateVideoStorage, getVideo } from "@/lib/videoStore";
 
 interface Props {
   recordingId: string;
@@ -14,6 +14,14 @@ export function RecordingVideo({ recordingId, label }: Props) {
   const [blob, setBlob] = useState<Blob | null>(null);
   const [missing, setMissing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [sizeLabel, setSizeLabel] = useState<string | null>(null);
+  const [storageLabel, setStorageLabel] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(bytes > 50 * 1024 * 1024 ? 0 : 1)} MB`;
+  };
 
   useEffect(() => {
     let revoked = false;
@@ -36,6 +44,14 @@ export function RecordingVideo({ recordingId, label }: Props) {
         setUrl(objectUrl);
         setMimeType(rec.mimeType);
         setBlob(rec.blob);
+        setSizeLabel(formatBytes(rec.blob.size));
+        void estimateVideoStorage().then((estimate) => {
+          if (estimate.usageBytes && estimate.quotaBytes) {
+            setStorageLabel(
+              `${formatBytes(estimate.usageBytes)} used of ${formatBytes(estimate.quotaBytes)} browser storage`
+            );
+          }
+        });
       })
       .catch(() => {
         if (!revoked) setMissing(true);
@@ -74,6 +90,20 @@ export function RecordingVideo({ recordingId, label }: Props) {
     }
   };
 
+  const handleDeleteLocalReplay = async () => {
+    if (!confirm("Delete this local replay from this device? The analysis numbers will remain saved.")) return;
+    setDeleting(true);
+    try {
+      await deleteVideo(recordingId);
+      if (url) URL.revokeObjectURL(url);
+      setUrl(null);
+      setBlob(null);
+      setMissing(true);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (missing) {
     return (
       <div className="bg-gray-800 rounded-xl p-3 text-xs text-gray-500">
@@ -91,6 +121,11 @@ export function RecordingVideo({ recordingId, label }: Props) {
   return (
     <div className="bg-gray-800 rounded-xl p-3">
       {label && <p className="text-xs text-gray-400 mb-2">{label}</p>}
+      {blob && blob.size > 20 * 1024 * 1024 && (
+        <div className="mb-3 rounded-lg border border-yellow-700/70 bg-yellow-900/20 p-3 text-xs text-yellow-200">
+          This local replay uses {sizeLabel}. Keep it for replay, or delete it after review to free space on this device.
+        </div>
+      )}
       <video
         src={url}
         controls
@@ -105,11 +140,20 @@ export function RecordingVideo({ recordingId, label }: Props) {
         >
           Share video
         </button>
+        <button
+          onClick={handleDeleteLocalReplay}
+          disabled={deleting}
+          className="flex-1 bg-gray-700 text-white text-sm py-2 rounded-lg active:bg-gray-600 disabled:opacity-60"
+        >
+          {deleting ? "Deleting..." : "Delete local replay"}
+        </button>
       </div>
       {shareError && <p className="text-[10px] text-red-400 mt-2">{shareError}</p>}
       <p className="text-[10px] text-gray-500 mt-2">
         Stored only on this device. Not uploaded.
       </p>
+      {sizeLabel && <p className="text-[10px] text-gray-500 mt-1">Replay size: {sizeLabel}</p>}
+      {storageLabel && <p className="text-[10px] text-gray-500 mt-1">{storageLabel}</p>}
     </div>
   );
 }

@@ -53,6 +53,7 @@ create table recordings (
   total_steps integer,
   -- Frame data (pose landmarks per frame as JSON)
   frame_data jsonb,
+  metric_settings_snapshot jsonb,
   created_at timestamptz default now()
 );
 
@@ -67,6 +68,13 @@ create table invitations (
   unique(email, patient_id)
 );
 
+create table metric_preferences (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  preferences jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Row Level Security (RLS) -- users can only see patients they have access to
 
 alter table patients enable row level security;
@@ -74,6 +82,7 @@ alter table patient_access enable row level security;
 alter table sessions enable row level security;
 alter table recordings enable row level security;
 alter table invitations enable row level security;
+alter table metric_preferences enable row level security;
 
 -- patient_access: users see their own access rows
 create policy "Users see own access"
@@ -199,3 +208,8 @@ create policy "Invitees see own invitations"
   using (
     lower(email) = lower(coalesce(auth.jwt()->>'email', ''))
   );
+
+create policy "Users manage own metric preferences"
+  on metric_preferences for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

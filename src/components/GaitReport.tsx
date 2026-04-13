@@ -13,6 +13,12 @@ import {
   type Severity,
 } from "@/lib/clinical-norms";
 import type { SessionMetrics, FrameMetrics } from "@/lib/types";
+import {
+  getSummaryMetricOrder,
+  mergeMetricPreferences,
+  type MetricPreferences,
+} from "@/lib/metric-settings";
+import type { TimelineMetricId } from "@/lib/metric-settings";
 
 // ---- Shared UI components ----
 
@@ -86,13 +92,52 @@ interface GaitReportProps {
   previousMetrics?: SessionMetrics | null;
   previousFrameMetrics?: FrameMetrics[];
   previousLabel?: string;
+  metricPreferences?: MetricPreferences | null;
+  onFocusMetric?: (metricId: TimelineMetricId) => void;
+}
+
+function focusMetricForSummary(metricId: ReturnType<typeof getSummaryMetricOrder>[number]): TimelineMetricId | null {
+  switch (metricId) {
+    case "knee_symmetry":
+      return "knee_symmetry";
+    case "trunk_stability":
+      return "trunk_lateral_lean";
+    case "head_stability":
+      return "head_tilt";
+    default:
+      return null;
+  }
+}
+
+function focusMetricForFeature(featureId: string): TimelineMetricId | null {
+  switch (featureId) {
+    case "persistent_knee_bend":
+    case "reduced_knee_motion":
+    case "knee_overextension":
+      return "left_knee_angle";
+    case "forefoot_first_landing":
+      return "left_ankle_angle";
+    case "side_lean_of_trunk":
+      return "trunk_lateral_lean";
+    default:
+      return null;
+  }
 }
 
 // ---- Main component ----
 
-export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFrameMetrics, previousLabel }: GaitReportProps) {
+export function GaitReport({
+  metrics,
+  frameMetrics,
+  previousMetrics,
+  previousFrameMetrics,
+  previousLabel,
+  metricPreferences,
+  onFocusMetric,
+}: GaitReportProps) {
   const [view, setView] = useState<"parent" | "clinical" | "raw" | "trends">("parent");
   const m = metrics;
+  const preferences = mergeMetricPreferences(metricPreferences ?? undefined);
 
   // Convert to clinical angles
   const leftKneeFlexion = toFlexionAngle(m.avgLeftKneeAngle);
@@ -125,9 +170,11 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
     stepWidth: m.stepWidth,
     leftPeakKneeExtension: -leftKneeFlexion,
     rightPeakKneeExtension: -rightKneeFlexion,
+    featurePreferences: preferences.features,
   });
 
-  const detectedPatterns = patterns.filter(p => p.detected);
+  const visiblePatterns = patterns.filter((pattern) => preferences.features[pattern.id].enabled);
+  const detectedPatterns = visiblePatterns.filter(p => p.detected);
 
   // Parent metrics
   const pMetrics = parentMetrics(
@@ -148,6 +195,16 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
       headStability: previousMetrics.headStability,
     } : null
   );
+  const summaryMetricOrder = getSummaryMetricOrder();
+  const visibleSummaryMetricIds = summaryMetricOrder.filter(
+    (metricId) => preferences.summary[metricId].enabled
+  );
+  const visibleParentMetrics = pMetrics
+    .map((metric, index) => ({
+      ...metric,
+      metricId: summaryMetricOrder[index],
+    }))
+    .filter((metric) => metric.metricId ? visibleSummaryMetricIds.includes(metric.metricId) : false);
 
   return (
     <div className="space-y-4">
@@ -189,7 +246,7 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
         <div className="space-y-4">
           {/* Simple metric cards */}
           <div className="space-y-2">
-            {pMetrics.map((pm) => (
+            {visibleParentMetrics.map((pm) => (
               <div key={pm.label} className="bg-gray-800 rounded-xl p-3 flex justify-between items-center">
                 <div>
                   <div className="text-sm text-white">{pm.label}</div>
@@ -197,7 +254,17 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
                     <div className={`text-xs ${STATUS_COLORS[pm.status]}`}>{pm.change}</div>
                   )}
                 </div>
-                <div className="text-lg font-mono font-bold text-white">{pm.value}</div>
+                <div className="text-right">
+                  <div className="text-lg font-mono font-bold text-white">{pm.value}</div>
+                  {pm.metricId && focusMetricForSummary(pm.metricId) && onFocusMetric && (
+                    <button
+                      onClick={() => onFocusMetric(focusMetricForSummary(pm.metricId)!)}
+                      className="mt-1 text-[11px] text-green-400"
+                    >
+                      Focus replay
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -214,6 +281,14 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
                     <span className="text-xs text-gray-500 ml-auto">{p.severity}</span>
                   </div>
                   <p className="text-xs text-gray-300">{p.parentDescription}</p>
+                  {focusMetricForFeature(p.id) && onFocusMetric && (
+                    <button
+                      onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)}
+                      className="mt-2 text-[11px] text-green-300"
+                    >
+                      Focus replay
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -249,7 +324,7 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
           {/* Observed movement features */}
           <div className="space-y-2">
             <h2 className="text-sm font-medium text-gray-400">Observed Movement Features</h2>
-            {patterns.map((p) => (
+            {visiblePatterns.map((p) => (
               <div key={p.name} className={`rounded-xl p-3 border ${SEV_BG[p.severity]}`}>
                 <div className="flex items-center gap-1 mb-1">
                   <SeverityDot severity={p.severity} />
@@ -257,6 +332,14 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
                   <span className="text-xs text-gray-500 ml-auto">{p.severity}</span>
                 </div>
                 <p className="text-xs text-gray-300">{p.clinicalDescription}</p>
+                {focusMetricForFeature(p.id) && onFocusMetric && (
+                  <button
+                    onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)}
+                    className="mt-2 text-[11px] text-green-300"
+                  >
+                    Focus replay
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -432,6 +515,7 @@ export function GaitReport({ metrics, frameMetrics, previousMetrics, previousFra
               frameMetrics={frameMetrics}
               comparisonMetrics={previousFrameMetrics}
               comparisonLabel={previousLabel || "Previous"}
+              metricPreferences={preferences}
             />
           )}
 

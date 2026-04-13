@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { getSession, updateSessionNotes, deleteSession } from "@/lib/db";
 import { GaitReport } from "@/components/GaitReport";
 import { RecordingVideo } from "@/components/RecordingVideo";
+import { MetricReplay } from "@/components/MetricReplay";
 import { reconcileViews } from "@/lib/reconcile-views";
-import type { SessionMetrics } from "@/lib/types";
+import type { FrameMetrics, PoseFrame, SessionMetrics } from "@/lib/types";
+import type { MetricPreferences, TimelineMetricId } from "@/lib/metric-settings";
 
 interface Recording {
   id: string;
@@ -22,6 +24,10 @@ interface Recording {
   hip_symmetry_index: number | null;
   stride_cadence: number | null;
   total_steps: number | null;
+  computed_metrics?: SessionMetrics | null;
+  frame_metrics?: FrameMetrics[] | null;
+  frame_data?: PoseFrame[] | null;
+  metric_settings_snapshot?: MetricPreferences | null;
 }
 
 interface SessionData {
@@ -36,6 +42,7 @@ interface SessionData {
   total_steps: number | null;
   duration_seconds: number | null;
   created_at: string;
+  computed_metrics?: SessionMetrics | null;
   recordings: Recording[];
 }
 
@@ -48,6 +55,7 @@ const VIEW_LABELS: Record<string, string> = {
 
 // Convert a DB recording row into a minimal SessionMetrics for the reconciler
 function recordingToMetrics(rec: Recording): SessionMetrics {
+  if (rec.computed_metrics) return rec.computed_metrics;
   return {
     durationSeconds: (rec.duration_ms || 0) / 1000,
     totalSteps: rec.total_steps ?? 0,
@@ -88,6 +96,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<"analysis" | "replay">("analysis");
   const [activeTab, setActiveTab] = useState<"reconciled" | string>("reconciled");
+  const [focusedMetricId, setFocusedMetricId] = useState<TimelineMetricId | null>(null);
 
   useEffect(() => {
     getSession(sessionId).then((s) => {
@@ -138,9 +147,9 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
   const hasMultipleAngles = recordings.length > 1;
 
   // Build reconciled metrics
-  const reconciledMetrics = hasMultipleAngles
+  const reconciledMetrics = session.computed_metrics ?? (hasMultipleAngles
     ? reconcileViews(recordings.map(r => ({ view_angle: r.view_angle, metrics: recordingToMetrics(r) })))
-    : recordings.length === 1 ? recordingToMetrics(recordings[0]) : null;
+    : recordings.length === 1 ? recordingToMetrics(recordings[0]) : null);
 
   // Get metrics for active tab
   const getActiveMetrics = (): SessionMetrics | null => {
@@ -150,6 +159,18 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
   };
 
   const activeMetrics = getActiveMetrics();
+  const activeFrameMetrics =
+    activeTab === "reconciled"
+      ? undefined
+      : recordings.find(r => r.view_angle === activeTab)?.frame_metrics ?? undefined;
+  const activeFrameData =
+    activeTab === "reconciled"
+      ? undefined
+      : recordings.find(r => r.view_angle === activeTab)?.frame_data ?? undefined;
+  const activeMetricPreferences =
+    activeTab === "reconciled"
+      ? recordings.find(r => r.metric_settings_snapshot)?.metric_settings_snapshot ?? null
+      : recordings.find(r => r.view_angle === activeTab)?.metric_settings_snapshot ?? null;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-8">
@@ -229,7 +250,19 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
           <>
             {/* Gait Report */}
             {activeMetrics ? (
-              <GaitReport metrics={activeMetrics} />
+              <GaitReport
+                metrics={activeMetrics}
+                frameMetrics={activeFrameMetrics}
+                metricPreferences={activeMetricPreferences}
+                onFocusMetric={
+                  activeTab !== "reconciled" && activeFrameData && activeFrameMetrics
+                    ? (metricId) => {
+                        setFocusedMetricId(metricId);
+                        setActiveSection("replay");
+                      }
+                    : undefined
+                }
+              />
             ) : (
               <div className="bg-gray-800 rounded-xl p-6 text-center text-gray-400">
                 No metrics available for this view.
@@ -243,6 +276,16 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
             <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
               Replay videos are stored only on the recording device in local browser storage. They are never uploaded to cloud storage, so they may be unavailable on a different phone or browser.
             </div>
+            {focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
+              <MetricReplay
+                recordingId={recordings.find(r => r.view_angle === activeTab)?.id ?? ""}
+                frameData={activeFrameData}
+                frameMetrics={activeFrameMetrics}
+                metricPreferences={activeMetricPreferences}
+                initialMetricId={focusedMetricId}
+                title="On-demand metric replay"
+              />
+            )}
             <p className="text-xs text-gray-500">
               Replay for {activeTab === "reconciled" ? "all recorded angles" : VIEW_LABELS[activeTab] ?? activeTab}
             </p>

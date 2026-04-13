@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { drawStickFigure } from "@/components/StickFigure";
 import { MetricsPanel } from "@/components/MetricsPanel";
 import { RecordingVideo } from "@/components/RecordingVideo";
+import { MetricReplay } from "@/components/MetricReplay";
 import { SetupGuide } from "@/components/SetupGuide";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
 import { GaitReport } from "@/components/GaitReport";
 import { putVideo } from "@/lib/videoStore";
 import type { PoseFrame, FrameMetrics, SessionMetrics } from "@/lib/types";
+import type { TimelineMetricId } from "@/lib/metric-settings";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
 export default function TryRecordPage() {
@@ -42,6 +44,7 @@ export default function TryRecordPage() {
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
   const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
   const [sourceDurationSeconds, setSourceDurationSeconds] = useState<number | null>(null);
+  const [focusedMetricId, setFocusedMetricId] = useState<TimelineMetricId | null>(null);
 
   const metricsUpdateCounter = useRef(0);
 
@@ -406,9 +409,27 @@ export default function TryRecordPage() {
         </div>
 
         {activeSection === "analysis" ? (
-          <GaitReport metrics={sessionResult} frameMetrics={frameMetricsRef.current} />
+          <GaitReport
+            metrics={sessionResult}
+            frameMetrics={frameMetricsRef.current}
+            onFocusMetric={(metricId) => {
+              setFocusedMetricId(metricId);
+              setActiveSection("replay");
+            }}
+          />
         ) : recordingId ? (
-          <RecordingVideo recordingId={recordingId} label="This device's replay" />
+          <div className="space-y-4">
+            {focusedMetricId && (
+              <MetricReplay
+                recordingId={recordingId}
+                frameData={framesRef.current}
+                frameMetrics={frameMetricsRef.current}
+                initialMetricId={focusedMetricId}
+                title="On-demand metric replay"
+              />
+            )}
+            <RecordingVideo recordingId={recordingId} label="This device's replay" />
+          </div>
         ) : (
           <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-400">
             Replay is not available for this capture on this device.
@@ -440,6 +461,7 @@ export default function TryRecordPage() {
               setRecordingId(null);
               setSelectedVideoName(null);
               setSourceDurationSeconds(null);
+              setFocusedMetricId(null);
               setShowGuide(true);
             }}
             className="flex-1 bg-gray-800 text-white py-3 rounded-xl text-sm active:bg-gray-700"

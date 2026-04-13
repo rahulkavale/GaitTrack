@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { FrameMetrics } from "@/lib/types";
+import type { MetricPreferences, TimelineMetricId } from "@/lib/metric-settings";
 
 interface MetricsTimelineProps {
   frameMetrics: FrameMetrics[];
@@ -156,93 +157,119 @@ interface GaitTimelineProps {
   frameMetrics: FrameMetrics[];
   comparisonMetrics?: FrameMetrics[];
   comparisonLabel?: string;
+  metricPreferences?: MetricPreferences;
 }
 
-export function GaitTimelines({ frameMetrics, comparisonMetrics, comparisonLabel }: GaitTimelineProps) {
+export function GaitTimelines({
+  frameMetrics,
+  comparisonMetrics,
+  comparisonLabel,
+  metricPreferences,
+}: GaitTimelineProps) {
   if (frameMetrics.length === 0) return null;
+
+  const enabled = (metricId: TimelineMetricId) => metricPreferences?.timelines[metricId]?.enabled ?? true;
 
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-medium text-gray-400">Frame-by-Frame Analysis</h2>
 
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="leftKneeAngle"
-        title="Left Knee Angle"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-        normalMin={160}
-        normalMax={180}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="rightKneeAngle"
-        title="Right Knee Angle"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-        normalMin={160}
-        normalMax={180}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="leftHipAngle"
-        title="Left Hip Angle"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="rightHipAngle"
-        title="Right Hip Angle"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="leftAnkleAngle"
-        title="Left Ankle Angle"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-        normalMin={85}
-        normalMax={95}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="trunkForwardLean"
-        title="Trunk Forward Lean"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="trunkLateralLean"
-        title="Trunk Lateral Lean"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="headTilt"
-        title="Head Tilt (Lateral)"
-        unit="°"
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-      />
-      <MetricsTimeline
-        frameMetrics={frameMetrics}
-        metric="kneeSymmetry"
-        title="Knee Symmetry (per frame)"
-        unit=""
-        comparisonData={comparisonMetrics}
-        comparisonLabel={comparisonLabel}
-      />
+      {enabled("left_knee_angle") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="leftKneeAngle"
+          title="Left Knee Angle"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={160}
+          normalMax={180}
+        />
+      )}
+      {enabled("right_knee_angle") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="rightKneeAngle"
+          title="Right Knee Angle"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={160}
+          normalMax={180}
+        />
+      )}
+      {enabled("left_hip_angle") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="leftHipAngle"
+          title="Left Hip Angle"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
+      {enabled("right_hip_angle") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="rightHipAngle"
+          title="Right Hip Angle"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
+      {enabled("left_ankle_angle") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="leftAnkleAngle"
+          title="Left Ankle Angle"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={85}
+          normalMax={95}
+        />
+      )}
+      {enabled("trunk_forward_lean") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="trunkForwardLean"
+          title="Trunk Forward Lean"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
+      {enabled("trunk_lateral_lean") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="trunkLateralLean"
+          title="Trunk Lateral Lean"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
+      {enabled("head_tilt") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="headTilt"
+          title="Head Tilt (Lateral)"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
+      {enabled("knee_symmetry") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metric="kneeSymmetry"
+          title="Knee Symmetry (per frame)"
+          unit=""
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
     </div>
   );
 }
