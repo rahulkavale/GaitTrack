@@ -89,6 +89,16 @@ function DeltaBadge({ label, current, previous, unit, higherIsBetter }: {
   );
 }
 
+function ConfidenceBadge({ value }: { value: SessionMetrics["walkingConfidence"] }) {
+  const color =
+    value === "steady"
+      ? "text-green-400"
+      : value === "watch"
+      ? "text-yellow-400"
+      : "text-red-400";
+  return <span className={`text-xs font-medium capitalize ${color}`}>{value.replace("-", " ")}</span>;
+}
+
 export default function ProgressPage({ params }: { params: Promise<{ patientId: string }> }) {
   const { patientId } = use(params);
   const router = useRouter();
@@ -130,9 +140,17 @@ export default function ProgressPage({ params }: { params: Promise<{ patientId: 
       headStability: Math.round((m?.headStability ?? 0) * 100),
       armSwingSym: Math.round((m?.armSwingSymmetry ?? 0) * 100),
       stepAsymmetry: Math.round((m?.stepTimeAsymmetry ?? 0) * 100),
+      supportPhaseAsym: Math.round((m?.supportPhaseAsymmetry ?? 0) * 100),
+      stepLengthAsym: Math.round((m?.estimatedStepLengthAsymmetry ?? 0) * 100),
       forwardLean: Math.round(m?.avgForwardLean ?? 0),
       headTilt: Math.round(m?.avgHeadTilt ?? 0),
       dblSupport: Math.round(m?.doubleSupportPercent ?? 0),
+      weightShift: Math.round((m?.weightShiftAsymmetry ?? 0) * 100),
+      leftToeClearance: Math.round((m?.leftToeClearance ?? 0) * 1000) / 1000,
+      rightToeClearance: Math.round((m?.rightToeClearance ?? 0) * 1000) / 1000,
+      fatigueDrift: Math.round((m?.fatigueDriftScore ?? 0) * 100),
+      pelvicObliquity: Math.round((m?.avgPelvicObliquity ?? 0) * 10) / 10,
+      walkingConfidence: m?.walkingConfidence ?? "steady",
     };
   });
 
@@ -194,6 +212,14 @@ export default function ProgressPage({ params }: { params: Promise<{ patientId: 
                 <DeltaBadge label="Toe Walking" current={last.toeWalkingSeverity * 100} previous={first.toeWalkingSeverity * 100} unit="%" higherIsBetter={false} />
                 <DeltaBadge label="Forward Lean" current={last.avgForwardLean} previous={first.avgForwardLean} unit="°" higherIsBetter={false} />
                 <DeltaBadge label="Step Asymmetry" current={last.stepTimeAsymmetry * 100} previous={first.stepTimeAsymmetry * 100} unit="%" higherIsBetter={false} />
+                <DeltaBadge label="Weight Shift Asymmetry" current={last.weightShiftAsymmetry * 100} previous={first.weightShiftAsymmetry * 100} unit="%" higherIsBetter={false} />
+                <DeltaBadge label="Toe Drag Risk (clearance)" current={Math.min(last.leftToeClearance, last.rightToeClearance) * 1000} previous={Math.min(first.leftToeClearance, first.rightToeClearance) * 1000} unit="" higherIsBetter={true} />
+                <DeltaBadge label="Fatigue Drift" current={last.fatigueDriftScore * 100} previous={first.fatigueDriftScore * 100} unit="%" higherIsBetter={false} />
+                <DeltaBadge label="Pelvic Obliquity" current={last.avgPelvicObliquity} previous={first.avgPelvicObliquity} unit="°" higherIsBetter={false} />
+                <div className="flex justify-between items-center py-1.5">
+                  <span className="text-xs text-gray-400">Walking confidence estimate</span>
+                  <ConfidenceBadge value={last.walkingConfidence} />
+                </div>
               </div>
             )}
 
@@ -271,6 +297,58 @@ export default function ProgressPage({ params }: { params: Promise<{ patientId: 
               lines={[{ key: "dblSupport", color: "#60A5FA", name: "Double Support %" }]}
               unit="%"
             />
+
+            <TrendChart
+              data={chartData}
+              title="Support & Loading (lower asymmetry = better)"
+              lines={[
+                { key: "weightShift", color: "#F59E0B", name: "Weight Shift %" },
+                { key: "supportPhaseAsym", color: "#60A5FA", name: "Support Phase %" },
+                { key: "stepLengthAsym", color: "#F87171", name: "Step Length %" },
+              ]}
+              unit="%"
+              domain={[0, 100]}
+            />
+
+            <TrendChart
+              data={chartData}
+              title="Toe Clearance (higher = more ground clearance)"
+              lines={[
+                { key: "leftToeClearance", color: "#34D399", name: "Left Toe" },
+                { key: "rightToeClearance", color: "#60A5FA", name: "Right Toe" },
+              ]}
+              unit=""
+            />
+
+            <TrendChart
+              data={chartData}
+              title="Fatigue & Pelvis (lower = steadier)"
+              lines={[
+                { key: "fatigueDrift", color: "#F87171", name: "Fatigue Drift %" },
+                { key: "pelvicObliquity", color: "#F59E0B", name: "Pelvic Obliquity °" },
+              ]}
+              unit=""
+            />
+
+            <div className="bg-gray-800 rounded-xl p-4">
+              <h3 className="text-sm font-medium text-gray-300 mb-3">Walking Confidence Trend</h3>
+              <div className="space-y-2">
+                {filtered.map((session) => (
+                  <div key={session.id} className="flex items-center justify-between rounded-lg bg-gray-900/60 px-3 py-2">
+                    <div>
+                      <div className="text-sm text-white">{session.label}</div>
+                      <div className="text-[11px] text-gray-500">
+                        {new Date(session.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </div>
+                    </div>
+                    <ConfidenceBadge value={session.computed_metrics?.walkingConfidence ?? "steady"} />
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                Confidence is a video-based estimate from balance, toe drag, support timing, and fatigue drift. It is useful for tracking trend, not for assigning mobility level by itself.
+              </p>
+            </div>
           </>
         )}
       </div>
