@@ -13,6 +13,8 @@ import {
 } from "recharts";
 import type { FrameMetrics, PoseFrame } from "@/lib/types";
 import type { MetricPreferences, TimelineMetricId } from "@/lib/metric-settings";
+import { getMetricDefinition } from "@/lib/metric-settings";
+import { captureEvent } from "@/lib/analytics/posthog";
 import { getVideo } from "@/lib/videoStore";
 import {
   findFrameIndexForTime,
@@ -36,6 +38,40 @@ function formatMetricValue(value: number, unit: string) {
   return `${Math.round(value * 10) / 10}${unit}`;
 }
 
+function describeHighlight(metricId: TimelineMetricId) {
+  switch (metricId) {
+    case "left_knee_angle":
+      return "The overlay highlights the left thigh and lower leg, centered on the knee joint.";
+    case "right_knee_angle":
+      return "The overlay highlights the right thigh and lower leg, centered on the knee joint.";
+    case "left_hip_angle":
+      return "The overlay highlights the left side of the trunk and upper leg, centered on the hip joint.";
+    case "right_hip_angle":
+      return "The overlay highlights the right side of the trunk and upper leg, centered on the hip joint.";
+    case "left_ankle_angle":
+      return "The overlay highlights the lower leg and foot on the left side, centered on the ankle.";
+    case "trunk_forward_lean":
+      return "The overlay highlights the trunk lines from shoulders to hips to show forward body posture.";
+    case "trunk_lateral_lean":
+      return "The overlay highlights shoulder and hip alignment to show side-to-side body lean.";
+    case "head_tilt":
+      return "The overlay highlights the head line across the ears and nose to show tilt.";
+    case "knee_symmetry":
+      return "The overlay highlights both legs together to compare left and right knee behavior.";
+  }
+}
+
+function describeSeverity(metricLabel: string, severity: "good" | "watch" | "concern", unit: string) {
+  switch (severity) {
+    case "good":
+      return `${metricLabel} is inside the current expected range, so the overlay stays green.`;
+    case "watch":
+      return `${metricLabel} is slightly outside the expected range, so the overlay turns yellow as a watch signal.`;
+    case "concern":
+      return `${metricLabel} is clearly outside the expected range, so the overlay turns red to draw attention.`;
+  }
+}
+
 export function MetricReplay({
   recordingId,
   frameData,
@@ -50,6 +86,7 @@ export function MetricReplay({
   const [missing, setMissing] = useState(false);
   const [selectedMetricId, setSelectedMetricId] = useState<TimelineMetricId>(initialMetricId);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const openedMetricRef = useRef<string | null>(null);
 
   useEffect(() => {
     setSelectedMetricId(initialMetricId);
@@ -95,6 +132,7 @@ export function MetricReplay({
   }, [visibleMetrics, selectedMetricId]);
 
   const selectedMetric = getMetricReplayConfig(selectedMetricId);
+  const selectedMetricDefinition = getMetricDefinition(selectedMetricId);
   const currentMetric = frameMetrics[currentFrameIndex];
   const rawValue = currentMetric?.[selectedMetric.frameMetricKey];
   const metricValue = typeof rawValue === "number"
@@ -115,6 +153,61 @@ export function MetricReplay({
       };
     });
   }, [frameMetrics, selectedMetric]);
+
+  const abnormalWindow = useMemo(() => {
+    if (chartData.length === 0 || selectedMetric.normalMin == null || selectedMetric.normalMax == null) {
+      return null;
+    }
+
+    let bestStart = 0;
+    let bestEnd = 0;
+    let bestScore = 0;
+    let runStart = -1;
+    let runScore = 0;
+
+    const distanceFromRange = (value: number) => {
+      if (value < selectedMetric.normalMin!) return selectedMetric.normalMin! - value;
+      if (value > selectedMetric.normalMax!) return value - selectedMetric.normalMax!;
+      return 0;
+    };
+
+    chartData.forEach((point, index) => {
+      const distance = distanceFromRange(point.value);
+      if (distance > 0) {
+        if (runStart === -1) {
+          runStart = index;
+          runScore = 0;
+        }
+        runScore += distance;
+        if (runScore >= bestScore) {
+          bestScore = runScore;
+          bestStart = runStart;
+          bestEnd = index;
+        }
+      } else {
+        runStart = -1;
+        runScore = 0;
+      }
+    });
+
+    if (bestScore === 0) return null;
+
+    return {
+      start: chartData[bestStart]?.time ?? 0,
+      end: chartData[bestEnd]?.time ?? chartData[bestStart]?.time ?? 0,
+    };
+  }, [chartData, selectedMetric.normalMax, selectedMetric.normalMin]);
+
+  useEffect(() => {
+    if (!url) return;
+    const eventName = openedMetricRef.current ? "metric_focus_metric_changed" : "metric_focus_opened";
+    captureEvent(eventName, {
+      recording_id: recordingId,
+      metric_id: selectedMetricId,
+      has_local_video: true,
+    });
+    openedMetricRef.current = selectedMetricId;
+  }, [recordingId, selectedMetricId, url]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -308,6 +401,36 @@ export function MetricReplay({
           </ResponsiveContainer>
         </div>
       </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl bg-gray-800 p-3">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-gray-500">What Is Highlighted</div>
+          <p className="mt-2 text-xs text-gray-300">
+            {describeHighlight(selectedMetricId)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-gray-800 p-3">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Why The Color Changed</div>
+          <p className="mt-2 text-xs text-gray-300">
+            {describeSeverity(selectedMetric.label, severity, selectedMetric.unit)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-gray-800 p-3">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Most Abnormal Window</div>
+          <p className="mt-2 text-xs text-gray-300">
+            {abnormalWindow
+              ? `${abnormalWindow.start.toFixed(1)}s to ${abnormalWindow.end.toFixed(1)}s shows the largest sustained deviation from the current expected range.`
+              : "No sustained out-of-range window was detected for this metric in the current replay."}
+          </p>
+        </div>
+      </div>
+
+      {selectedMetricDefinition && (
+        <div className="rounded-xl bg-gray-800 p-3">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Metric Logic</div>
+          <p className="mt-2 text-xs text-gray-300">{selectedMetricDefinition.detailDescription}</p>
+        </div>
+      )}
     </div>
   );
 }

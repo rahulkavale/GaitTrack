@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { captureEvent } from "@/lib/analytics/posthog";
 import { deleteVideo, estimateVideoStorage, getVideo } from "@/lib/videoStore";
 
 interface Props {
@@ -45,6 +46,16 @@ export function RecordingVideo({ recordingId, label }: Props) {
         setMimeType(rec.mimeType);
         setBlob(rec.blob);
         setSizeLabel(formatBytes(rec.blob.size));
+        captureEvent("local_replay_loaded", {
+          recording_id: recordingId,
+          replay_size_bytes: rec.blob.size,
+        });
+        if (rec.blob.size > 20 * 1024 * 1024) {
+          captureEvent("large_replay_warning_shown", {
+            recording_id: recordingId,
+            replay_size_bytes: rec.blob.size,
+          });
+        }
         void estimateVideoStorage().then((estimate) => {
           if (estimate.usageBytes && estimate.quotaBytes) {
             setStorageLabel(
@@ -74,6 +85,10 @@ export function RecordingVideo({ recordingId, label }: Props) {
     if (canShareFiles) {
       try {
         await navigator.share({ files: [file], title: "Gait recording" });
+        captureEvent("local_replay_shared", {
+          recording_id: recordingId,
+          share_method: "navigator_share",
+        });
         return;
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -87,6 +102,10 @@ export function RecordingVideo({ recordingId, label }: Props) {
       document.body.appendChild(a);
       a.click();
       a.remove();
+      captureEvent("local_replay_shared", {
+        recording_id: recordingId,
+        share_method: "download",
+      });
     }
   };
 
@@ -95,6 +114,9 @@ export function RecordingVideo({ recordingId, label }: Props) {
     setDeleting(true);
     try {
       await deleteVideo(recordingId);
+      captureEvent("local_replay_deleted", {
+        recording_id: recordingId,
+      });
       if (url) URL.revokeObjectURL(url);
       setUrl(null);
       setBlob(null);
