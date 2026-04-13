@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getSessions, inviteToPatient } from "@/lib/db";
 import { createClient } from "@/lib/supabase/client";
 import { TABLES } from "@/lib/tables";
+import type { SessionContext } from "@/lib/types";
 
 interface Recording {
   id: string;
@@ -24,6 +25,7 @@ interface Session {
   total_steps: number | null;
   duration_seconds: number | null;
   created_at: string;
+  session_context?: SessionContext | null;
   recordings: Recording[];
 }
 
@@ -242,6 +244,16 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
                               {Math.round(session.duration_seconds ?? 0)}s
                             </p>
                           </div>
+                        </div>
+                      )}
+                      {session.session_context && (
+                        <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-gray-400">
+                          <span className="rounded-full bg-gray-900 px-2 py-0.5">AFO: {session.session_context.afo.replace("_", " ")}</span>
+                          <span className="rounded-full bg-gray-900 px-2 py-0.5">Footwear: {session.session_context.footwear.replace("_", " ")}</span>
+                          <span className="rounded-full bg-gray-900 px-2 py-0.5">Support: {session.session_context.supportLevel.replace("_", " ")}</span>
+                          <span className="rounded-full bg-gray-900 px-2 py-0.5">Env: {session.session_context.environment}</span>
+                          <span className="rounded-full bg-gray-900 px-2 py-0.5">Pain: {session.session_context.painLevel ?? "?"}</span>
+                          <span className="rounded-full bg-gray-900 px-2 py-0.5">Fatigue: {session.session_context.fatigueToday}</span>
                         </div>
                       )}
                     </div>

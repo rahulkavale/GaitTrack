@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { drawStickFigure } from "@/components/StickFigure";
 import { MetricsPanel } from "@/components/MetricsPanel";
 import { SetupGuide } from "@/components/SetupGuide";
+import { SessionContextFields, hasMeaningfulSessionContext } from "@/components/SessionContextFields";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
-import { saveRecording, consolidateSessionMetrics, getSession, getMetricPreferences } from "@/lib/db";
+import { saveRecording, consolidateSessionMetrics, getSession, getMetricPreferences, updateSessionContext } from "@/lib/db";
 import { putVideo } from "@/lib/videoStore";
-import type { PoseFrame, FrameMetrics } from "@/lib/types";
+import { DEFAULT_SESSION_CONTEXT, type PoseFrame, type FrameMetrics, type SessionContext } from "@/lib/types";
 import { DEFAULT_METRIC_PREFERENCES, type MetricPreferences } from "@/lib/metric-settings";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -34,6 +35,8 @@ export default function JoinRecordPage({
   const [viewAngle, setViewAngle] = useState<ViewAngle>("front");
   const [existingAngles, setExistingAngles] = useState<string[]>([]);
   const [patientId, setPatientId] = useState<string | null>(null);
+  const [sessionContext, setSessionContext] = useState<SessionContext>(DEFAULT_SESSION_CONTEXT);
+  const [savingContext, setSavingContext] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,6 +85,8 @@ export default function JoinRecordPage({
         const angles = recordings.map(r => r.view_angle);
         setExistingAngles(angles);
         setPatientId((s as { patient_id?: string }).patient_id ?? null);
+        const savedContext = (s as { session_context?: SessionContext | null }).session_context;
+        if (savedContext) setSessionContext(savedContext);
         // Suggest an angle not yet recorded
         if (angles.includes("side-left") || angles.includes("side-right")) {
           setViewAngle("front");
@@ -91,6 +96,15 @@ export default function JoinRecordPage({
       }
     });
   }, [sessionId]);
+
+  const persistSessionContext = useCallback(async () => {
+    setSavingContext(true);
+    try {
+      await updateSessionContext(sessionId, hasMeaningfulSessionContext(sessionContext) ? sessionContext : null);
+    } finally {
+      setSavingContext(false);
+    }
+  }, [sessionContext, sessionId]);
 
   useEffect(() => {
     getMetricPreferences()
@@ -409,17 +423,32 @@ export default function JoinRecordPage({
         </div>
 
         <button
-          onClick={() => setPhase("guide")}
+          onClick={async () => {
+            await persistSessionContext();
+            setPhase("guide");
+          }}
           className="w-full bg-green-600 text-white py-4 rounded-xl text-lg font-bold active:bg-green-700"
         >
           Start Recording ({VIEW_LABELS[viewAngle]})
         </button>
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={async () => {
+            await persistSessionContext();
+            fileInputRef.current?.click();
+          }}
           className="w-full mt-3 bg-gray-800 text-white py-3 rounded-xl text-sm font-medium active:bg-gray-700"
         >
           Use Existing Video ({VIEW_LABELS[viewAngle]})
         </button>
+        <div className="mt-6 rounded-2xl border border-white/5 bg-gray-900 p-4">
+          <SessionContextFields
+            value={sessionContext}
+            onChange={setSessionContext}
+            saving={savingContext}
+            title="Session Context"
+            description="Update the shared conditions for this session so the main results stay comparable."
+          />
+        </div>
       </div>
     );
   }

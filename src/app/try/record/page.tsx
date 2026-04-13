@@ -7,10 +7,11 @@ import { MetricsPanel } from "@/components/MetricsPanel";
 import { RecordingVideo } from "@/components/RecordingVideo";
 import { MetricReplay } from "@/components/MetricReplay";
 import { SetupGuide } from "@/components/SetupGuide";
+import { SessionContextFields } from "@/components/SessionContextFields";
 import { computeFrameMetrics, computeSessionMetrics } from "@/lib/gait-metrics";
 import { GaitReport } from "@/components/GaitReport";
 import { putVideo } from "@/lib/videoStore";
-import type { PoseFrame, FrameMetrics, SessionMetrics } from "@/lib/types";
+import { DEFAULT_SESSION_CONTEXT, type PoseFrame, type FrameMetrics, type SessionContext, type SessionMetrics } from "@/lib/types";
 import type { TimelineMetricId } from "@/lib/metric-settings";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -46,6 +47,7 @@ export default function TryRecordPage() {
   const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
   const [sourceDurationSeconds, setSourceDurationSeconds] = useState<number | null>(null);
   const [focusedMetricId, setFocusedMetricId] = useState<TimelineMetricId | null>(null);
+  const [sessionContext, setSessionContext] = useState<SessionContext>(DEFAULT_SESSION_CONTEXT);
 
   const metricsUpdateCounter = useRef(0);
 
@@ -381,7 +383,14 @@ export default function TryRecordPage() {
           }}
           secondaryActionLabel="Use Existing Video"
           onSecondaryAction={() => fileInputRef.current?.click()}
-        />
+        >
+          <SessionContextFields
+            value={sessionContext}
+            onChange={setSessionContext}
+            title="Recording Context"
+            description="This stays in the demo view only. It helps you judge whether two recordings were taken under similar conditions."
+          />
+        </SetupGuide>
       </>
     );
   }
@@ -396,6 +405,17 @@ export default function TryRecordPage() {
         </p>
         <div className="bg-gray-900 border border-white/10 rounded-xl p-4 mb-4 text-sm text-gray-300">
           Replay is stored only on this device in local browser storage. It is not uploaded.
+        </div>
+        <div className="bg-gray-900 border border-white/10 rounded-xl p-4 mb-4 text-xs text-gray-300">
+          <div className="font-medium text-white mb-2">Recording context</div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-gray-800 px-2.5 py-1">AFO: {sessionContext.afo.replace("_", " ")}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1">Footwear: {sessionContext.footwear.replace("_", " ")}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1">Support: {sessionContext.supportLevel.replace("_", " ")}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1">Environment: {sessionContext.environment}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1">Pain: {sessionContext.painLevel ?? "unknown"}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1">Fatigue: {sessionContext.fatigueToday}</span>
+          </div>
         </div>
         <div className="flex gap-1 bg-gray-900 rounded-xl p-1 mb-4">
           <button
