@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GaitTimelines } from "@/components/MetricsTimeline";
 import {
   toFlexionAngle,
@@ -94,7 +94,11 @@ interface GaitReportProps {
   previousLabel?: string;
   metricPreferences?: MetricPreferences | null;
   onFocusMetric?: (metricId: TimelineMetricId) => void;
+  initialView?: "parent" | "clinical" | "raw" | "trends";
+  allowedViews?: Array<"parent" | "clinical" | "raw" | "trends">;
 }
+
+type ReportView = "parent" | "clinical" | "raw" | "trends";
 
 function focusMetricForSummary(metricId: ReturnType<typeof getSummaryMetricOrder>[number]): TimelineMetricId | null {
   switch (metricId) {
@@ -134,10 +138,23 @@ export function GaitReport({
   previousLabel,
   metricPreferences,
   onFocusMetric,
+  initialView = "parent",
+  allowedViews = ["parent", "clinical", "raw", "trends"],
 }: GaitReportProps) {
-  const [view, setView] = useState<"parent" | "clinical" | "raw" | "trends">("parent");
+  const [view, setView] = useState<ReportView>(initialView);
   const m = metrics;
   const preferences = mergeMetricPreferences(metricPreferences ?? undefined);
+
+  const visibleViews: ReportView[] = allowedViews.length > 0 ? allowedViews : ["parent"];
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
+    if (!visibleViews.includes(view)) {
+      setView(visibleViews[0]);
+    }
+  }, [view, visibleViews]);
 
   // Convert to clinical angles
   const leftKneeFlexion = toFlexionAngle(m.avgLeftKneeAngle);
@@ -216,7 +233,7 @@ export function GaitReport({
     <div className="space-y-4">
       {/* View toggle */}
       <div className="flex gap-1 bg-gray-900 rounded-xl p-1 overflow-x-auto">
-        {(["parent", "clinical", "raw", "trends"] as const).map((v) => (
+        {visibleViews.map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}

@@ -47,6 +47,7 @@ interface SessionData {
 }
 
 const VIEW_LABELS: Record<string, string> = {
+  reconciled: "Combined Summary",
   "side-left": "Left Side",
   "side-right": "Right Side",
   front: "Front",
@@ -94,7 +95,9 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
   const [session, setSession] = useState<SessionData | null>(null);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"analysis" | "replay">("analysis");
+  const [activeSection, setActiveSection] = useState<"overview" | "replay" | "advanced">("overview");
+  const [overviewMode, setOverviewMode] = useState<"parent" | "clinical">("parent");
+  const [advancedMode, setAdvancedMode] = useState<"trends" | "raw">("trends");
   const [activeTab, setActiveTab] = useState<"reconciled" | string>("reconciled");
   const [focusedMetricId, setFocusedMetricId] = useState<TimelineMetricId | null>(null);
 
@@ -196,12 +199,12 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
       <div className="p-4 space-y-4">
         <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
           <button
-            onClick={() => setActiveSection("analysis")}
+            onClick={() => setActiveSection("overview")}
             className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
-              activeSection === "analysis" ? "bg-green-600 text-white" : "text-gray-400"
+              activeSection === "overview" ? "bg-green-600 text-white" : "text-gray-400"
             }`}
           >
-            Analysis
+            Overview
           </button>
           <button
             onClick={() => setActiveSection("replay")}
@@ -210,6 +213,14 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
             }`}
           >
             Replay
+          </button>
+          <button
+            onClick={() => setActiveSection("advanced")}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
+              activeSection === "advanced" ? "bg-green-600 text-white" : "text-gray-400"
+            }`}
+          >
+            Advanced
           </button>
         </div>
 
@@ -222,7 +233,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                 activeTab === "reconciled" ? "bg-green-600 text-white" : "text-gray-400"
               }`}
             >
-              Combined
+              Combined Summary
             </button>
             {recordings.map((rec) => (
               <button
@@ -241,19 +252,39 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         {/* Active tab description */}
         {hasMultipleAngles && activeTab === "reconciled" && (
           <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-3 text-xs text-green-300">
-            Combined view: best metrics from each camera angle merged into one analysis.
+            Combined summary: best metrics from each camera angle merged into one analysis.
             Side view for joint angles, front view for lateral movement.
           </div>
         )}
 
-        {activeSection === "analysis" && (
+        {activeSection === "overview" && (
           <>
+            <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+              <button
+                onClick={() => setOverviewMode("parent")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  overviewMode === "parent" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Summary
+              </button>
+              <button
+                onClick={() => setOverviewMode("clinical")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  overviewMode === "clinical" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Detailed Analysis
+              </button>
+            </div>
             {/* Gait Report */}
             {activeMetrics ? (
               <GaitReport
                 metrics={activeMetrics}
                 frameMetrics={activeFrameMetrics}
                 metricPreferences={activeMetricPreferences}
+                initialView={overviewMode}
+                allowedViews={["parent", "clinical"]}
                 onFocusMetric={
                   activeTab !== "reconciled" && activeFrameData && activeFrameMetrics
                     ? (metricId) => {
@@ -276,6 +307,11 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
             <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
               Replay videos are stored only on the recording device in local browser storage. They are never uploaded to cloud storage, so they may be unavailable on a different phone or browser.
             </div>
+            {!focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
+              <div className="rounded-xl border border-green-800/50 bg-green-900/20 p-3 text-xs text-green-200">
+                Metric replay is available for this angle. Open Summary or Detailed Analysis and tap <span className="font-semibold">Watch Focused Replay</span> on a supported metric.
+              </div>
+            )}
             {focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
               <MetricReplay
                 recordingId={recordings.find(r => r.view_angle === activeTab)?.id ?? ""}
@@ -303,6 +339,45 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                 />
               );
             })}
+          </div>
+        )}
+
+        {activeSection === "advanced" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-gray-900 p-3 text-xs text-gray-300">
+              Advanced views keep every existing detail, but they are separated from the default overview so the main reading flow stays simpler.
+            </div>
+            <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+              <button
+                onClick={() => setAdvancedMode("trends")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  advancedMode === "trends" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Trends
+              </button>
+              <button
+                onClick={() => setAdvancedMode("raw")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  advancedMode === "raw" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Advanced Data
+              </button>
+            </div>
+            {activeMetrics ? (
+              <GaitReport
+                metrics={activeMetrics}
+                frameMetrics={activeFrameMetrics}
+                metricPreferences={activeMetricPreferences}
+                initialView={advancedMode}
+                allowedViews={["trends", "raw"]}
+              />
+            ) : (
+              <div className="bg-gray-800 rounded-xl p-6 text-center text-gray-400">
+                No advanced metrics available for this view.
+              </div>
+            )}
           </div>
         )}
 
