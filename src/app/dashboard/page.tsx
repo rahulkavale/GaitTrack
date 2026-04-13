@@ -30,39 +30,68 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("");
 
   useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+
     async function load() {
-      const supabase = createClient();
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserName(user.user_metadata?.name || user.email || "");
+      if (!active) return;
+
+      if (!user) {
+        setUserName("");
+        setPatients([]);
+        setInvitations([]);
+        setLoading(false);
+        return;
       }
 
+      setUserName(user.user_metadata?.name || user.email || "");
+
       try {
-        const [p, inv] = await Promise.all([getPatients(), getPendingInvitations()]);
-        console.log("Loaded patients:", p);
+        const [p, inv] = await Promise.all([getPatients(user.id), getPendingInvitations()]);
+        if (!active) return;
         setPatients(p as unknown as Patient[]);
         setInvitations(inv as unknown as Invitation[]);
       } catch (err) {
+        if (!active) return;
         console.error("Failed to load patients:", err);
       }
-      setLoading(false);
+
+      if (active) setLoading(false);
     }
-    load();
+
+    void load();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      void load();
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPatientName.trim()) return;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     await createPatient(newPatientName.trim());
     setNewPatientName("");
     setShowAddPatient(false);
-    const p = await getPatients();
+    const p = await getPatients(user.id);
     setPatients(p as unknown as Patient[]);
   };
 
   const handleAcceptInvitation = async (id: string) => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     await acceptInvitation(id);
-    const [p, inv] = await Promise.all([getPatients(), getPendingInvitations()]);
+    const [p, inv] = await Promise.all([getPatients(user.id), getPendingInvitations()]);
     setPatients(p as unknown as Patient[]);
     setInvitations(inv as unknown as Invitation[]);
   };

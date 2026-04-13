@@ -7,15 +7,14 @@ const supabase = () => createClient();
 
 // ---- Patients ----
 
-export async function getPatients() {
-  // First get patient IDs this user has access to
-  const { data: { user } } = await supabase().auth.getUser();
-  if (!user) return [];
+export async function getPatients(userId?: string) {
+  const resolvedUserId = userId ?? (await supabase().auth.getUser()).data.user?.id;
+  if (!resolvedUserId) return [];
 
   const { data: accessRows, error: accessError } = await supabase()
     .from(TABLES.patient_access)
     .select("patient_id, role")
-    .eq("user_id", user.id);
+    .eq("user_id", resolvedUserId);
   if (accessError) throw accessError;
   if (!accessRows || accessRows.length === 0) return [];
 
