@@ -205,6 +205,12 @@ export function GaitReport({
       metricId: summaryMetricOrder[index],
     }))
     .filter((metric) => metric.metricId ? visibleSummaryMetricIds.includes(metric.metricId) : false);
+  const canFocusReplay =
+    typeof onFocusMetric === "function" &&
+    (
+      visibleParentMetrics.some((metric) => metric.metricId && focusMetricForSummary(metric.metricId)) ||
+      visiblePatterns.some((pattern) => focusMetricForFeature(pattern.id))
+    );
 
   return (
     <div className="space-y-4">
@@ -241,6 +247,22 @@ export function GaitReport({
         )}
       </div>
 
+      {canFocusReplay && (view === "parent" || view === "clinical") && (
+        <div className="rounded-xl border border-green-700/60 bg-green-900/20 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-green-200">Metric replay available</p>
+              <p className="mt-1 text-xs text-green-100/80">
+                Tap any <span className="font-semibold text-green-200">Watch Focused Replay</span> button below to jump into a color-coded replay for that metric.
+              </p>
+            </div>
+            <div className="rounded-full bg-green-500/20 px-3 py-1 text-[10px] font-medium tracking-[0.18em] text-green-200">
+              NEW
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ======== PARENT VIEW ======== */}
       {view === "parent" && (
         <div className="space-y-4">
@@ -259,9 +281,9 @@ export function GaitReport({
                   {pm.metricId && focusMetricForSummary(pm.metricId) && onFocusMetric && (
                     <button
                       onClick={() => onFocusMetric(focusMetricForSummary(pm.metricId)!)}
-                      className="mt-1 text-[11px] text-green-400"
+                      className="mt-2 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
                     >
-                      Focus replay
+                      Watch Focused Replay
                     </button>
                   )}
                 </div>
@@ -284,9 +306,9 @@ export function GaitReport({
                   {focusMetricForFeature(p.id) && onFocusMetric && (
                     <button
                       onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)}
-                      className="mt-2 text-[11px] text-green-300"
+                      className="mt-3 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
                     >
-                      Focus replay
+                      Watch Focused Replay
                     </button>
                   )}
                 </div>
@@ -335,9 +357,9 @@ export function GaitReport({
                 {focusMetricForFeature(p.id) && onFocusMetric && (
                   <button
                     onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)}
-                    className="mt-2 text-[11px] text-green-300"
+                    className="mt-3 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
                   >
-                    Focus replay
+                    Watch Focused Replay
                   </button>
                 )}
               </div>

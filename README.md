@@ -22,6 +22,20 @@ This project exists to close that gap with a practical middle ground:
 - easier to use regularly
 - private by default
 
+## Killer Feature
+
+The standout feature in the current product is **metric-focused replay**.
+
+Instead of only showing summary numbers, the app can now let a user jump from a metric directly into a replay that:
+
+- stays local on the device and is never uploaded
+- highlights the exact body region relevant to that metric
+- overlays a synced frame-by-frame metric trace
+- color-codes the replay as green / yellow / red based on the current expected range
+- explains what is highlighted, why the color changed, and when the largest deviation happened
+
+This is important because it turns the product from "a dashboard of numbers" into "a visual explanation of what the number means."
+
 ## What The App Does
 
 Today the app supports:
@@ -31,6 +45,7 @@ Today the app supports:
 - per-session movement metrics from pose landmarks
 - multiple camera angles in one session
 - local replay of the recorded/uploaded video on the same device
+- on-demand metric-focused replay with overlays and synced traces
 - session history and review for signed-in users
 - a no-login `Try now` flow
 
@@ -116,6 +131,7 @@ The product behavior should be obvious:
 
 - analysis tab for metrics and movement features
 - replay tab for local video playback when available on that device
+- on-demand focused replay launched from supported metrics/features
 
 ## Technical Overview
 
@@ -157,6 +173,12 @@ This is a deliberate tradeoff:
 - good: low backend cost, better privacy
 - bad: replay does not follow the user to another device/browser
 
+Metric-focused replay follows the same model:
+
+- it is generated on demand from saved frame landmarks, frame metrics, and the local replay blob
+- no metric-specific rendered videos are precomputed or uploaded
+- the expensive part stays local and only runs when the user explicitly asks for it
+
 ### Metric Pipeline
 
 Main logic lives in:
@@ -193,6 +215,7 @@ Recordings store:
 - frame landmarks
 - frame metrics
 - computed summary metrics
+- metric-settings snapshot used for that recording
 
 Replay video itself is not stored in Supabase.
 
