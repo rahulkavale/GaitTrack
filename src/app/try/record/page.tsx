@@ -14,6 +14,7 @@ import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
 export default function TryRecordPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const landmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -37,12 +38,26 @@ export default function TryRecordPage() {
   const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<"analysis" | "replay">("analysis");
+  const [sourceMode, setSourceMode] = useState<"camera" | "upload">("camera");
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
+  const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
+  const [sourceDurationSeconds, setSourceDurationSeconds] = useState<number | null>(null);
 
   const metricsUpdateCounter = useRef(0);
+
+  const ensureLandmarker = useCallback(async () => {
+    if (landmarkerRef.current) return landmarkerRef.current;
+    setLoadingStatus("Loading pose detection model...");
+    const { createPoseLandmarker } = await import("@/lib/mediapipe");
+    landmarkerRef.current = await createPoseLandmarker();
+    return landmarkerRef.current;
+  }, []);
 
   const startCamera = useCallback(async () => {
     setIsLoading(true);
     setCameraError(null);
+    setSourceMode("camera");
+    setSourceDurationSeconds(null);
 
     try {
       setLoadingStatus("Requesting camera access...");
@@ -61,9 +76,7 @@ export default function TryRecordPage() {
         await videoRef.current.play();
       }
 
-      setLoadingStatus("Loading pose detection model...");
-      const { createPoseLandmarker } = await import("@/lib/mediapipe");
-      landmarkerRef.current = await createPoseLandmarker();
+      await ensureLandmarker();
 
       setIsLoading(false);
       setLoadingStatus("");
@@ -79,7 +92,59 @@ export default function TryRecordPage() {
         );
       }
     }
-  }, []);
+  }, [ensureLandmarker]);
+
+  const analyzeUploadedVideo = useCallback(async (file: File) => {
+    setIsLoading(true);
+    setCameraError(null);
+    setSourceMode("upload");
+    setSelectedVideoName(file.name);
+    setRecordingId(null);
+    setSourceDurationSeconds(null);
+
+    try {
+      await ensureLandmarker();
+
+      const objectUrl = URL.createObjectURL(file);
+      setUploadedVideoUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return objectUrl;
+      });
+
+      framesRef.current = [];
+      frameMetricsRef.current = [];
+      metricsUpdateCounter.current = 0;
+      setCurrentMetrics(null);
+      setElapsedSeconds(0);
+
+      const video = videoRef.current;
+      if (!video) throw new Error("Video element unavailable");
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      video.srcObject = null;
+      video.src = objectUrl;
+      video.currentTime = 0;
+      video.muted = true;
+      video.playsInline = true;
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("Failed to load the selected video"));
+      });
+      setSourceDurationSeconds(Number.isFinite(video.duration) ? video.duration : null);
+
+      startTimeRef.current = 0;
+      setIsLoading(false);
+      setLoadingStatus("");
+      setShowGuide(false);
+      setIsRecording(true);
+      await video.play();
+    } catch (err) {
+      setIsLoading(false);
+      setCameraError(err instanceof Error ? err.message : "Failed to analyze video");
+    }
+  }, [ensureLandmarker]);
 
   const runDetection = useCallback(() => {
     const video = videoRef.current;
@@ -98,6 +163,7 @@ export default function TryRecordPage() {
     canvas.height = video.videoHeight;
 
     const now = performance.now();
+    const timestamp = sourceMode === "upload" ? video.currentTime * 1000 : now - startTimeRef.current;
     const result = landmarker.detectForVideo(video, now);
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -109,8 +175,6 @@ export default function TryRecordPage() {
       drawStickFigure(ctx, landmarks, canvas.width, canvas.height);
 
       if (isRecording) {
-        const timestamp = now - startTimeRef.current;
-
         const frame: PoseFrame = {
           timestamp,
           landmarks: landmarks.map((l) => ({
@@ -134,13 +198,13 @@ export default function TryRecordPage() {
         metricsUpdateCounter.current++;
         if (metricsUpdateCounter.current % 4 === 0) {
           setCurrentMetrics(metrics);
-          setElapsedSeconds((now - startTimeRef.current) / 1000);
+          setElapsedSeconds(timestamp / 1000);
         }
       }
     }
 
     animationRef.current = requestAnimationFrame(runDetection);
-  }, [isRecording]);
+  }, [isRecording, sourceMode]);
 
   const startRecording = useCallback(() => {
     framesRef.current = [];
@@ -150,6 +214,7 @@ export default function TryRecordPage() {
     setCurrentMetrics(null);
     setElapsedSeconds(0);
     setRecordingId(null);
+    setSourceMode("camera");
 
     const canvas = canvasRef.current;
     const captureStream =
@@ -189,11 +254,16 @@ export default function TryRecordPage() {
     setIsRecording(false);
     setIsSaving(true);
     cancelAnimationFrame(animationRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+
+    if (sourceMode === "camera") {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    } else if (videoRef.current) {
+      videoRef.current.pause();
+    }
 
     let videoBlob: Blob | null = null;
     const mediaRecorder = mediaRecorderRef.current;
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    if (sourceMode === "camera" && mediaRecorder && mediaRecorder.state !== "inactive") {
       await new Promise<void>((resolve) => {
         mediaRecorder.onstop = () => resolve();
         mediaRecorder.stop();
@@ -210,6 +280,12 @@ export default function TryRecordPage() {
     const fMetrics = frameMetricsRef.current;
     const metrics = computeSessionMetrics(fMetrics, frames, durationMs);
     const localRecordingId = crypto.randomUUID();
+
+    if (sourceMode === "upload" && uploadedVideoUrl) {
+      const response = await fetch(uploadedVideoUrl);
+      videoBlob = await response.blob();
+      setRecordedMimeType(videoBlob.type || "video/mp4");
+    }
 
     if (videoBlob) {
       try {
@@ -230,7 +306,7 @@ export default function TryRecordPage() {
     setSessionResult(metrics);
     setActiveSection("analysis");
     setIsSaving(false);
-  }, [recordedMimeType]);
+  }, [recordedMimeType, sourceMode, uploadedVideoUrl]);
 
   useEffect(() => {
     if (!isLoading && !showGuide && !cameraError && landmarkerRef.current && !sessionResult) {
@@ -245,8 +321,23 @@ export default function TryRecordPage() {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       const mediaRecorder = mediaRecorderRef.current;
       if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+      if (uploadedVideoUrl) URL.revokeObjectURL(uploadedVideoUrl);
     };
-  }, []);
+  }, [uploadedVideoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || sourceMode !== "upload") return;
+
+    const handleEnded = () => {
+      if (isRecording && !isSaving) {
+        void stopRecording();
+      }
+    };
+
+    video.addEventListener("ended", handleEnded);
+    return () => video.removeEventListener("ended", handleEnded);
+  }, [isRecording, isSaving, sourceMode, stopRecording]);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -259,12 +350,28 @@ export default function TryRecordPage() {
 
   if (showGuide) {
     return (
-      <SetupGuide
-        onDismiss={() => {
-          setShowGuide(false);
-          startCamera();
-        }}
-      />
+      <>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            void analyzeUploadedVideo(file);
+            event.currentTarget.value = "";
+          }}
+        />
+        <SetupGuide
+          onDismiss={() => {
+            setShowGuide(false);
+            startCamera();
+          }}
+          secondaryActionLabel="Use Existing Video"
+          onSecondaryAction={() => fileInputRef.current?.click()}
+        />
+      </>
     );
   }
 
@@ -331,6 +438,8 @@ export default function TryRecordPage() {
             onClick={() => {
               setSessionResult(null);
               setRecordingId(null);
+              setSelectedVideoName(null);
+              setSourceDurationSeconds(null);
               setShowGuide(true);
             }}
             className="flex-1 bg-gray-800 text-white py-3 rounded-xl text-sm active:bg-gray-700"
@@ -351,6 +460,18 @@ export default function TryRecordPage() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          void analyzeUploadedVideo(file);
+          event.currentTarget.value = "";
+        }}
+      />
       <div className="relative flex-1">
         <video
           ref={videoRef}
@@ -364,15 +485,38 @@ export default function TryRecordPage() {
         />
         <div className="absolute top-20 left-4 right-4 z-10">
           <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
-            Demo replay is recorded on this device only and stored locally in this browser. Nothing is uploaded.
+            {sourceMode === "upload"
+              ? "Selected videos are analyzed locally in this browser, and replay stays on this device only. Nothing is uploaded."
+              : "Demo replay is recorded on this device only and stored locally in this browser. Nothing is uploaded."}
           </div>
         </div>
+        {sourceMode === "upload" && isRecording && sourceDurationSeconds && (
+          <div className="absolute top-36 left-4 right-4 z-10">
+            <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <span>Analyzing uploaded video</span>
+                <span>{Math.min(100, Math.round((elapsedSeconds / sourceDurationSeconds) * 100))}%</span>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-white/10">
+                <div
+                  className="h-1.5 rounded-full bg-green-500"
+                  style={{ width: `${Math.min(100, (elapsedSeconds / sourceDurationSeconds) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         <MetricsPanel
           metrics={currentMetrics}
           isRecording={isRecording}
           elapsedSeconds={elapsedSeconds}
           recordingMode={isSaving ? "saving" : isRecording ? "recording" : "idle"}
         />
+        {selectedVideoName && (
+          <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-lg max-w-[70%] truncate">
+            Uploaded: {selectedVideoName}
+          </div>
+        )}
       </div>
 
       <div className="bg-black/80 p-4 pb-8 flex items-center justify-center gap-6 safe-bottom">

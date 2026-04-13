@@ -31,6 +31,7 @@ export default function RecordPage({
 }) {
   const { patientId } = use(params);
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Session state
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -60,8 +61,20 @@ export default function RecordPage({
   const [isSaving, setIsSaving] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
+  const [sourceMode, setSourceMode] = useState<"camera" | "upload">("camera");
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
+  const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
+  const [sourceDurationSeconds, setSourceDurationSeconds] = useState<number | null>(null);
 
   const metricsUpdateCounter = useRef(0);
+
+  const ensureLandmarker = useCallback(async () => {
+    if (landmarkerRef.current) return landmarkerRef.current;
+    setLoadingStatus("Loading pose detection model...");
+    const { createPoseLandmarker } = await import("@/lib/mediapipe");
+    landmarkerRef.current = await createPoseLandmarker();
+    return landmarkerRef.current;
+  }, []);
 
   // Create session immediately on mount
   useEffect(() => {
@@ -86,6 +99,8 @@ export default function RecordPage({
   const startCamera = useCallback(async () => {
     setIsLoading(true);
     setCameraError(null);
+    setSourceMode("camera");
+    setSourceDurationSeconds(null);
     try {
       setLoadingStatus("Requesting camera access...");
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -97,10 +112,9 @@ export default function RecordPage({
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      setLoadingStatus("Loading pose detection model...");
-      const { createPoseLandmarker } = await import("@/lib/mediapipe");
-      landmarkerRef.current = await createPoseLandmarker();
+      await ensureLandmarker();
       setIsLoading(false);
+      setLoadingStatus("");
     } catch (err) {
       setIsLoading(false);
       if (err instanceof DOMException && err.name === "NotAllowedError") {
@@ -109,7 +123,58 @@ export default function RecordPage({
         setCameraError(`Failed to start: ${err instanceof Error ? err.message : "Unknown error"}`);
       }
     }
-  }, []);
+  }, [ensureLandmarker]);
+
+  const analyzeUploadedVideo = useCallback(async (file: File) => {
+    setIsLoading(true);
+    setCameraError(null);
+    setSourceMode("upload");
+    setSelectedVideoName(file.name);
+    setSourceDurationSeconds(null);
+
+    try {
+      await ensureLandmarker();
+
+      const objectUrl = URL.createObjectURL(file);
+      setUploadedVideoUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return objectUrl;
+      });
+
+      framesRef.current = [];
+      frameMetricsRef.current = [];
+      metricsUpdateCounter.current = 0;
+      setCurrentMetrics(null);
+      setElapsedSeconds(0);
+
+      const video = videoRef.current;
+      if (!video) throw new Error("Video element unavailable");
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      video.srcObject = null;
+      video.src = objectUrl;
+      video.currentTime = 0;
+      video.muted = true;
+      video.playsInline = true;
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error("Failed to load the selected video"));
+      });
+      setSourceDurationSeconds(Number.isFinite(video.duration) ? video.duration : null);
+
+      startTimeRef.current = 0;
+      setIsLoading(false);
+      setLoadingStatus("");
+      setShowGuide(false);
+      setIsRecording(true);
+      await video.play();
+    } catch (err) {
+      setIsLoading(false);
+      setCameraError(err instanceof Error ? err.message : "Failed to analyze video");
+    }
+  }, [ensureLandmarker]);
 
   const runDetection = useCallback(() => {
     const video = videoRef.current;
@@ -124,6 +189,7 @@ export default function RecordPage({
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const now = performance.now();
+    const timestamp = sourceMode === "upload" ? video.currentTime * 1000 : now - startTimeRef.current;
     const result = landmarker.detectForVideo(video, now);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     if (result.landmarks && result.landmarks.length > 0) {
@@ -131,7 +197,6 @@ export default function RecordPage({
       const worldLandmarks = result.worldLandmarks?.[0] ?? landmarks;
       drawStickFigure(ctx, landmarks, canvas.width, canvas.height);
       if (isRecording) {
-        const timestamp = now - startTimeRef.current;
         const frame: PoseFrame = {
           timestamp,
           landmarks: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z, visibility: l.visibility ?? 0 })),
@@ -143,12 +208,12 @@ export default function RecordPage({
         metricsUpdateCounter.current++;
         if (metricsUpdateCounter.current % 4 === 0) {
           setCurrentMetrics(metrics);
-          setElapsedSeconds((now - startTimeRef.current) / 1000);
+          setElapsedSeconds(timestamp / 1000);
         }
       }
     }
     animationRef.current = requestAnimationFrame(runDetection);
-  }, [isRecording]);
+  }, [isRecording, sourceMode]);
 
   const startRecording = useCallback(() => {
     framesRef.current = [];
@@ -157,6 +222,8 @@ export default function RecordPage({
     setIsRecording(true);
     setCurrentMetrics(null);
     setElapsedSeconds(0);
+    setSourceMode("camera");
+    setSelectedVideoName(null);
 
     // Begin recording the composited canvas (video frame + skeleton overlay).
     // The video stays entirely on-device — chunks are held in memory and exposed
@@ -206,7 +273,7 @@ export default function RecordPage({
     // Finalize the canvas MediaRecorder and assemble a single blob.
     let videoBlob: Blob | null = null;
     const mr = mediaRecorderRef.current;
-    if (mr && mr.state !== "inactive") {
+    if (sourceMode === "camera" && mr && mr.state !== "inactive") {
       await new Promise<void>((resolve) => {
         mr.onstop = () => resolve();
         mr.stop();
@@ -219,7 +286,9 @@ export default function RecordPage({
     }
 
     try {
-      const durationMs = performance.now() - startTimeRef.current;
+      const durationMs = sourceMode === "upload"
+        ? Math.round((framesRef.current.at(-1)?.timestamp ?? 0))
+        : performance.now() - startTimeRef.current;
       const frames = framesRef.current;
       const fMetrics = frameMetricsRef.current;
       const metrics = computeSessionMetrics(fMetrics, frames, durationMs);
@@ -232,6 +301,11 @@ export default function RecordPage({
         fMetrics,
       );
       await consolidateSessionMetrics(sessionId!);
+
+      if (sourceMode === "upload" && uploadedVideoUrl) {
+        const response = await fetch(uploadedVideoUrl);
+        videoBlob = await response.blob();
+      }
 
       // Persist the video on-device, keyed to the recording we just saved.
       // Failures here should never block the user from seeing their report.
@@ -253,14 +327,18 @@ export default function RecordPage({
       setRecordingCount(c => c + 1);
       setShowDone(true);
       cancelAnimationFrame(animationRef.current);
-      streamRef.current?.getTracks().forEach(t => t.stop());
+      if (sourceMode === "camera") {
+        streamRef.current?.getTracks().forEach(t => t.stop());
+      } else {
+        videoRef.current?.pause();
+      }
     } catch (err) {
       console.error("Failed to save:", err);
       setCameraError(`Failed to save: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
     } finally {
       setIsSaving(false);
     }
-  }, [sessionId, viewAngle, recordedMimeType, patientId]);
+  }, [sessionId, viewAngle, recordedMimeType, patientId, sourceMode, uploadedVideoUrl]);
 
   // Effects
   useEffect(() => {
@@ -276,8 +354,21 @@ export default function RecordPage({
       streamRef.current?.getTracks().forEach(t => t.stop());
       const mr = mediaRecorderRef.current;
       if (mr && mr.state !== "inactive") mr.stop();
+      if (uploadedVideoUrl) URL.revokeObjectURL(uploadedVideoUrl);
     };
-  }, []);
+  }, [uploadedVideoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || sourceMode !== "upload") return;
+    const handleEnded = () => {
+      if (isRecording && !isSaving) {
+        void stopRecording();
+      }
+    };
+    video.addEventListener("ended", handleEnded);
+    return () => video.removeEventListener("ended", handleEnded);
+  }, [isRecording, isSaving, sourceMode, stopRecording]);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -291,12 +382,28 @@ export default function RecordPage({
   // ---- Setup guide ----
   if (showGuide) {
     return (
-      <SetupGuide
-        onDismiss={() => {
-          setShowGuide(false);
-          startCamera();
-        }}
-      />
+      <>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            void analyzeUploadedVideo(file);
+            event.currentTarget.value = "";
+          }}
+        />
+        <SetupGuide
+          onDismiss={() => {
+            setShowGuide(false);
+            startCamera();
+          }}
+          secondaryActionLabel="Use Existing Video"
+          onSecondaryAction={() => fileInputRef.current?.click()}
+        />
+      </>
     );
   }
 
@@ -348,6 +455,18 @@ export default function RecordPage({
   // ---- Recording screen ----
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          void analyzeUploadedVideo(file);
+          event.currentTarget.value = "";
+        }}
+      />
       <div className="relative flex-1">
         <video ref={videoRef} playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-0" />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain" />
@@ -359,9 +478,27 @@ export default function RecordPage({
         />
         <div className="absolute top-20 left-4 right-4 z-10">
           <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
-            Video replay is recorded on this device only and stored locally in this browser. Nothing is uploaded to cloud storage.
+            {sourceMode === "upload"
+              ? "Selected videos are analyzed locally in this browser, and replay stays on this device only. Nothing is uploaded."
+              : "Video replay is recorded on this device only and stored locally in this browser. Nothing is uploaded to cloud storage."}
           </div>
         </div>
+        {sourceMode === "upload" && isRecording && sourceDurationSeconds && (
+          <div className="absolute top-36 left-4 right-4 z-10">
+            <div className="rounded-xl border border-white/10 bg-black/65 px-3 py-2 text-[11px] text-gray-200 shadow-lg backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <span>Analyzing uploaded video</span>
+                <span>{Math.min(100, Math.round((elapsedSeconds / sourceDurationSeconds) * 100))}%</span>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-white/10">
+                <div
+                  className="h-1.5 rounded-full bg-green-500"
+                  style={{ width: `${Math.min(100, (elapsedSeconds / sourceDurationSeconds) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Join code shown during recording so second person can join */}
         {joinCode && (
@@ -370,7 +507,7 @@ export default function RecordPage({
           </div>
         )}
         <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs px-3 py-1.5 rounded-lg">
-          {VIEW_LABELS[viewAngle]}
+          {selectedVideoName ? `Uploaded: ${selectedVideoName}` : VIEW_LABELS[viewAngle]}
         </div>
       </div>
 

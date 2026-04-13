@@ -2,9 +2,15 @@
 
 interface SetupGuideProps {
   onDismiss: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
 }
 
-export function SetupGuide({ onDismiss }: SetupGuideProps) {
+export function SetupGuide({
+  onDismiss,
+  secondaryActionLabel,
+  onSecondaryAction,
+}: SetupGuideProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6">
       <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full text-white">
@@ -70,6 +76,14 @@ export function SetupGuide({ onDismiss }: SetupGuideProps) {
         >
           Got it, start camera
         </button>
+        {secondaryActionLabel && onSecondaryAction && (
+          <button
+            onClick={onSecondaryAction}
+            className="mt-3 w-full bg-gray-800 text-white py-3 rounded-xl font-medium text-sm active:bg-gray-700"
+          >
+            {secondaryActionLabel}
+          </button>
+        )}
       </div>
     </div>
   );
