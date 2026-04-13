@@ -100,18 +100,13 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
           &larr; Back
         </button>
         <h1 className="text-xl font-bold">{patient?.name}</h1>
+        <p className="text-sm text-gray-400 mt-1">Start a new recording or review past sessions.</p>
         <div className="flex gap-2 mt-3">
           <Link
             href={`/patient/${patientId}/record`}
             className="flex-1 bg-green-600 text-white py-2.5 rounded-xl text-sm font-medium text-center active:bg-green-700"
           >
-            Record Session
-          </Link>
-          <Link
-            href="/settings"
-            className="bg-gray-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium text-center active:bg-gray-700"
-          >
-            Settings
+            New Recording
           </Link>
           {sessions.length > 1 && (
             <Link
@@ -125,13 +120,28 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Share / Invite */}
-        <button
-          onClick={() => setShowInvite(!showInvite)}
-          className="w-full bg-gray-800 rounded-xl p-3 text-sm text-gray-300 text-center active:bg-gray-700"
-        >
-          Share with therapist or family
-        </button>
+        <div className="bg-gray-900 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium text-white">Manage profile</h2>
+              <p className="text-xs text-gray-400 mt-1">Sharing and metric preferences live here.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowInvite(!showInvite)}
+                className="rounded-lg bg-gray-800 px-3 py-2 text-xs text-gray-300 active:bg-gray-700"
+              >
+                {showInvite ? "Hide sharing" : "Share access"}
+              </button>
+              <Link
+                href="/settings"
+                className="rounded-lg bg-gray-800 px-3 py-2 text-xs text-gray-300 active:bg-gray-700"
+              >
+                Settings
+              </Link>
+            </div>
+          </div>
+        </div>
 
         {showInvite && (
           <form onSubmit={handleInvite} className="bg-gray-800 rounded-xl p-4 space-y-3">
@@ -184,7 +194,7 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
           <div className="text-center py-12">
             <p className="text-gray-500 mb-2">No sessions yet</p>
             <p className="text-gray-600 text-sm">
-              Tap &quot;Record Session&quot; to capture the first walking session
+              Tap &quot;New Recording&quot; to capture the first walking session
             </p>
           </div>
         ) : (
@@ -205,11 +215,12 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
                               hour: "numeric",
                               minute: "2-digit",
                             })}
-                            {" - "}
+                            {" • "}
                             {session.recordings.length} angle
-                            {session.recordings.length !== 1 ? "s" : ""}
+                            {session.recordings.length !== 1 ? "s" : ""} recorded
                           </p>
                         </div>
+                        <span className="text-xs text-green-400">Open review</span>
                       </div>
                       {session.knee_symmetry_index != null && (
                         <div className="grid grid-cols-3 gap-2 text-xs">

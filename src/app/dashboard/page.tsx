@@ -158,20 +158,10 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold mb-1">Gait Tracker</h1>
             <p className="text-sm text-gray-400">Hi, {userName}</p>
+            <p className="text-xs text-gray-500 mt-2">Choose a child profile or create a new one to start recording.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/settings"
-              className="text-xs text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
-            >
-              Settings
-            </Link>
-            <button
-              onClick={handleSignOut}
-              className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
-            >
-              Sign out
-            </button>
+          <div className="rounded-full bg-green-500/10 px-3 py-1 text-[10px] font-medium tracking-[0.18em] text-green-300">
+            TRACKING HOME
           </div>
         </div>
       </div>
@@ -179,6 +169,7 @@ export default function DashboardPage() {
       <div className="p-4 space-y-4">
         {invitations.length > 0 && (
           <div className="space-y-2">
+            <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-blue-300/80">Invitations</h2>
             {invitations.map((inv) => (
               <div key={inv.id} className="bg-blue-900/30 border border-blue-800 rounded-xl p-4">
                 <p className="text-sm text-blue-300 mb-2">
@@ -195,6 +186,29 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+
+        <div className="bg-gray-900 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium text-white">Your children</h2>
+              <p className="text-xs text-gray-400 mt-1">Profiles and session history stay here.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/settings"
+                className="text-xs text-gray-300 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
+              >
+                Settings
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-lg active:bg-gray-700"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
 
         {showAddPatient ? (
           <form onSubmit={handleAddPatient} className="bg-gray-800 rounded-xl p-4">
