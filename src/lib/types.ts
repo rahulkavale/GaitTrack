@@ -113,11 +113,27 @@ export interface SessionMetrics {
   legPreference: "left" | "right" | "balanced";
   weightShiftAsymmetry: number; // 0-1, higher means more loading imbalance
   preferredWeightSide: "left" | "right" | "balanced";
+  supportPhaseAsymmetry: number; // 0-1, absolute left/right stance difference
+  estimatedStepLengthAsymmetry: number; // 0-1 heuristic from step spacing
 
   // Balance / fall tendency
   fallRiskDetected: boolean;
   fallRiskDirection: "left" | "right" | "forward" | "neutral";
   fallRiskSeverity: number; // 0-1 heuristic severity
+  walkingConfidence: "steady" | "watch" | "support-recommended";
+
+  // Foot clearance / tripping
+  leftToeClearance: number; // normalized swing clearance estimate
+  rightToeClearance: number;
+  toeDragRiskDetected: boolean;
+  toeDragRiskSide: "left" | "right" | "both" | "none";
+
+  // Pelvis and fatigue
+  avgPelvicObliquity: number; // average hip line tilt magnitude in degrees
+  pelvicDropDetected: boolean;
+  pelvicDropSide: "left" | "right" | "none";
+  fatigueDriftScore: number; // 0-1 change from early to late recording
+  fatigueObserved: boolean;
 
   // Walking line (front view)
   stepWidth: number;          // avg distance between feet (normalized)

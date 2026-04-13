@@ -155,6 +155,17 @@ function directionLabel(direction: SessionMetrics["fallRiskDirection"]) {
   return `toward the ${direction}`;
 }
 
+function confidenceLabel(confidence: SessionMetrics["walkingConfidence"]) {
+  switch (confidence) {
+    case "steady":
+      return "steady unsupported pattern";
+    case "watch":
+      return "watch closely";
+    case "support-recommended":
+      return "support may be needed";
+  }
+}
+
 // ---- Main component ----
 
 export function GaitReport({
@@ -224,6 +235,9 @@ export function GaitReport({
   const leftArmStatus = classifyRange(m.leftArmSwingRange, NORMS.armSwing.range);
   const rightArmStatus = classifyRange(m.rightArmSwingRange, NORMS.armSwing.range);
   const weightShiftPercent = Math.round(m.weightShiftAsymmetry * 100);
+  const stepLengthAsymmetryPercent = Math.round(m.estimatedStepLengthAsymmetry * 100);
+  const supportPhaseAsymmetryPercent = Math.round(m.supportPhaseAsymmetry * 100);
+  const fatiguePercent = Math.round(m.fatigueDriftScore * 100);
   const fallSeverityLabel: Severity =
     m.fallRiskSeverity >= 0.75 ? "severe" : m.fallRiskSeverity >= 0.55 ? "moderate" : m.fallRiskSeverity >= 0.35 ? "mild" : "normal";
 
@@ -451,6 +465,41 @@ export function GaitReport({
               {onFocusMetric && <ActionButton onClick={() => onFocusMetric("fall_risk")} />}
             </div>
           </div>
+
+          <div className="rounded-2xl border border-blue-800/50 bg-blue-950/20 p-4 shadow-sm shadow-blue-950/10">
+            <h2 className="text-sm font-medium text-blue-100">Parent-Facing Video-Based Estimates</h2>
+            <p className="mt-1 text-xs text-blue-200/80">
+              These are observational estimates from video, meant to make the recording easier to understand. They are not definitive biomechanics.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Walking confidence</div>
+                <div className="mt-1 text-sm text-white">{confidenceLabel(m.walkingConfidence)}</div>
+                <div className={`mt-1 text-xs ${m.walkingConfidence === "steady" ? "text-green-400" : m.walkingConfidence === "watch" ? "text-yellow-400" : "text-red-400"}`}>
+                  estimate only from video posture and timing
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Sustained walking time</div>
+                <div className="mt-1 text-sm text-white">{Math.round(m.durationSeconds)} seconds</div>
+                <div className="mt-1 text-xs text-gray-400">Use repeated sessions over time to judge endurance change.</div>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Tripping / toe drag</div>
+                <div className="mt-1 text-sm text-white">
+                  {m.toeDragRiskDetected ? `watch ${m.toeDragRiskSide} side` : "not flagged"}
+                </div>
+                <div className="mt-1 text-xs text-gray-400">
+                  Left clearance {m.leftToeClearance.toFixed(3)}, right clearance {m.rightToeClearance.toFixed(3)}.
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Fatigue drift</div>
+                <div className="mt-1 text-sm text-white">{m.fatigueObserved ? "movement changed later in the clip" : "no strong fatigue change flagged"}</div>
+                <div className="mt-1 text-xs text-gray-400">{fatiguePercent}% drift based on posture and foot-clearance changes.</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -512,6 +561,14 @@ export function GaitReport({
               <span className={m.preferredWeightSide === "balanced" ? "text-green-400" : "text-yellow-400"}>
                 {m.preferredWeightSide}
               </span>
+            </div>
+            <div className="mt-1 flex justify-between text-xs">
+              <span className="text-gray-400">Support phase asymmetry</span>
+              <span className="font-mono text-white">{supportPhaseAsymmetryPercent}%</span>
+            </div>
+            <div className="mt-1 flex justify-between text-xs">
+              <span className="text-gray-400">Step length asymmetry estimate</span>
+              <span className="font-mono text-white">{stepLengthAsymmetryPercent}%</span>
             </div>
             <div className="text-xs text-gray-500 mt-2">
               Normal: stance 58-62%, double support 16-24%
@@ -577,6 +634,29 @@ export function GaitReport({
           </div>
 
           <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="text-sm font-medium text-gray-300 mb-3">Foot Clearance & Ankle Events</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs text-gray-500">Left toe clearance</div>
+                <div className="mt-1 text-sm font-mono text-white">{m.leftToeClearance.toFixed(3)}</div>
+                <div className={`mt-1 text-xs ${m.leftHeelStrikePresent ? "text-green-400" : "text-yellow-400"}`}>
+                  {m.leftHeelStrikePresent ? "heel-strike signal present" : "heel-strike signal limited"}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs text-gray-500">Right toe clearance</div>
+                <div className="mt-1 text-sm font-mono text-white">{m.rightToeClearance.toFixed(3)}</div>
+                <div className={`mt-1 text-xs ${m.rightHeelStrikePresent ? "text-green-400" : "text-yellow-400"}`}>
+                  {m.rightHeelStrikePresent ? "heel-strike signal present" : "heel-strike signal limited"}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Toe-clearance and heel-strike signals are video-based estimates from foot motion, useful for watching tripping risk and landing pattern over time.
+            </p>
+          </div>
+
+          <div className="bg-gray-800 rounded-xl p-4">
             <h2 className="text-sm font-medium text-gray-300 mb-3">Balance Direction</h2>
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400">Fall tendency</span>
@@ -590,6 +670,29 @@ export function GaitReport({
             </div>
             <p className="mt-2 text-xs text-gray-500">
               This is a heuristic directional balance flag based on trunk lean and forward posture, not a clinical fall prediction.
+            </p>
+          </div>
+
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="text-sm font-medium text-gray-300 mb-3">Pelvis & Fatigue</h2>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-400">Pelvic obliquity</span>
+              <span className="font-mono text-white">{Math.round(m.avgPelvicObliquity * 10) / 10}°</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-xs">
+              <span className="text-gray-400">Pelvic drop / hike</span>
+              <span className={m.pelvicDropDetected ? "text-yellow-400" : "text-green-400"}>
+                {m.pelvicDropDetected ? `${m.pelvicDropSide} side flagged` : "not flagged"}
+              </span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-xs">
+              <span className="text-gray-400">Fatigue drift</span>
+              <span className={m.fatigueObserved ? "text-yellow-400" : "text-green-400"}>
+                {fatiguePercent}% {m.fatigueObserved ? "observed" : "stable"}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Pelvic and fatigue signals are observational estimates from how hip level, posture, and foot clearance change across the clip.
             </p>
           </div>
         </div>

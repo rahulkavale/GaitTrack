@@ -86,6 +86,12 @@ function recordingToMetrics(rec: Recording): SessionMetrics {
     doubleSupportPercent: 20, stepTimeAsymmetry: 0, legPreference: "balanced",
     weightShiftAsymmetry: 0, preferredWeightSide: "balanced",
     fallRiskDetected: false, fallRiskDirection: "neutral", fallRiskSeverity: 0,
+    supportPhaseAsymmetry: 0, estimatedStepLengthAsymmetry: 0,
+    walkingConfidence: "steady",
+    leftToeClearance: 0, rightToeClearance: 0,
+    toeDragRiskDetected: false, toeDragRiskSide: "none",
+    avgPelvicObliquity: 0, pelvicDropDetected: false, pelvicDropSide: "none",
+    fatigueDriftScore: 0, fatigueObserved: false,
     stepWidth: 0, lateralDeviation: 0, kneeValgusDetected: false,
     gaitDeviationIndex: 50, overallSymmetry: 0,
   };

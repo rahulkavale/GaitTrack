@@ -103,6 +103,8 @@ export function reconcileViews(
     legPreference: s.legPreference,
     weightShiftAsymmetry: s.weightShiftAsymmetry,
     preferredWeightSide: s.preferredWeightSide,
+    supportPhaseAsymmetry: s.supportPhaseAsymmetry,
+    estimatedStepLengthAsymmetry: s.estimatedStepLengthAsymmetry,
 
     // Balance / fall tendency: combine sagittal and frontal signals
     fallRiskDetected: s.fallRiskDetected || f.fallRiskDetected,
@@ -111,6 +113,25 @@ export function reconcileViews(
         ? f.fallRiskDirection
         : s.fallRiskDirection,
     fallRiskSeverity: Math.max(s.fallRiskSeverity, f.fallRiskSeverity),
+    walkingConfidence:
+      s.walkingConfidence === "support-recommended" || f.walkingConfidence === "support-recommended"
+        ? "support-recommended"
+        : s.walkingConfidence === "watch" || f.walkingConfidence === "watch"
+        ? "watch"
+        : "steady",
+
+    // Foot clearance / fatigue: side view is more informative
+    leftToeClearance: s.leftToeClearance,
+    rightToeClearance: s.rightToeClearance,
+    toeDragRiskDetected: s.toeDragRiskDetected,
+    toeDragRiskSide: s.toeDragRiskSide,
+    fatigueDriftScore: s.fatigueDriftScore,
+    fatigueObserved: s.fatigueObserved,
+
+    // Pelvis / frontal plane: front view is more informative
+    avgPelvicObliquity: f.avgPelvicObliquity,
+    pelvicDropDetected: f.pelvicDropDetected,
+    pelvicDropSide: f.pelvicDropSide,
 
     // Walking line: front view is authoritative
     stepWidth: f.stepWidth,

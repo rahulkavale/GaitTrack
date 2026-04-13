@@ -66,6 +66,19 @@ function stddev(arr: number[]): number {
   return Math.sqrt(arr.reduce((sum, v) => sum + (v - mean) ** 2, 0) / arr.length);
 }
 
+function median(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 // ---- Per-frame metrics ----
 
 export function computeFrameMetrics(
@@ -281,7 +294,13 @@ export function computeSessionMetrics(
     leftStancePercent: 50, rightStancePercent: 50,
     doubleSupportPercent: 20, stepTimeAsymmetry: 0, legPreference: "balanced",
     weightShiftAsymmetry: 0, preferredWeightSide: "balanced",
+    supportPhaseAsymmetry: 0, estimatedStepLengthAsymmetry: 0,
     fallRiskDetected: false, fallRiskDirection: "neutral", fallRiskSeverity: 0,
+    walkingConfidence: "steady",
+    leftToeClearance: 0, rightToeClearance: 0,
+    toeDragRiskDetected: false, toeDragRiskSide: "none",
+    avgPelvicObliquity: 0, pelvicDropDetected: false, pelvicDropSide: "none",
+    fatigueDriftScore: 0, fatigueObserved: false,
     stepWidth: 0, lateralDeviation: 0, kneeValgusDetected: false,
     gaitDeviationIndex: 50, overallSymmetry: 0,
   };
@@ -393,6 +412,50 @@ export function computeSessionMetrics(
       : phases.leftStancePercent > phases.rightStancePercent
       ? "left"
       : "right";
+  const supportPhaseAsymmetry = weightShiftAsymmetry;
+
+  const frameIndexForTimestamp = (timestamp: number) => {
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    frames.forEach((frame, index) => {
+      const distance = Math.abs(frame.timestamp - timestamp);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+    return closestIndex;
+  };
+
+  const leftStepSpacing = phases.leftSteps.map((timestamp) => {
+    const frame = frames[frameIndexForTimestamp(timestamp)];
+    const left = frame?.landmarks[LANDMARK.LEFT_ANKLE];
+    const right = frame?.landmarks[LANDMARK.RIGHT_ANKLE];
+    return left && right ? Math.abs(left.x - right.x) : 0;
+  });
+  const rightStepSpacing = phases.rightSteps.map((timestamp) => {
+    const frame = frames[frameIndexForTimestamp(timestamp)];
+    const left = frame?.landmarks[LANDMARK.LEFT_ANKLE];
+    const right = frame?.landmarks[LANDMARK.RIGHT_ANKLE];
+    return left && right ? Math.abs(left.x - right.x) : 0;
+  });
+  const estimatedStepLengthAsymmetry = (() => {
+    const leftStepLength = avg(leftStepSpacing);
+    const rightStepLength = avg(rightStepSpacing);
+    const denom = Math.max(leftStepLength, rightStepLength, 0.001);
+    return Math.abs(leftStepLength - rightStepLength) / denom;
+  })();
+
+  const leftFootYs = frames.map((f) => f.landmarks[LANDMARK.LEFT_FOOT_INDEX]?.y ?? f.landmarks[LANDMARK.LEFT_ANKLE]?.y ?? 0);
+  const rightFootYs = frames.map((f) => f.landmarks[LANDMARK.RIGHT_FOOT_INDEX]?.y ?? f.landmarks[LANDMARK.RIGHT_ANKLE]?.y ?? 0);
+  const leftToeClearance = Math.max(0, median(leftFootYs) - Math.min(...leftFootYs));
+  const rightToeClearance = Math.max(0, median(rightFootYs) - Math.min(...rightFootYs));
+  const minToeClearance = Math.min(leftToeClearance, rightToeClearance);
+  let toeDragRiskSide: "left" | "right" | "both" | "none" = "none";
+  if (leftToeClearance < 0.012 && rightToeClearance < 0.012) toeDragRiskSide = "both";
+  else if (leftToeClearance < 0.012) toeDragRiskSide = "left";
+  else if (rightToeClearance < 0.012) toeDragRiskSide = "right";
+  const toeDragRiskDetected = toeDragRiskSide !== "none";
 
   // Step width: average horizontal distance between ankles
   const stepWidths = frames.map(f => {
@@ -423,6 +486,21 @@ export function computeSessionMetrics(
   }).length;
   const kneeValgusDetected = valgusFrames / frames.length > 0.3;
 
+  const pelvicAngles = frames.map((f) => {
+    const leftHip = f.landmarks[LANDMARK.LEFT_HIP];
+    const rightHip = f.landmarks[LANDMARK.RIGHT_HIP];
+    if (!leftHip || !rightHip) return 0;
+    const dy = rightHip.y - leftHip.y;
+    const dx = Math.abs(rightHip.x - leftHip.x) || 0.001;
+    return Math.atan2(dy, dx) * (180 / Math.PI);
+  });
+  const avgSignedPelvicObliquity = avg(pelvicAngles);
+  const avgPelvicObliquity = avg(pelvicAngles.map(Math.abs));
+  let pelvicDropSide: "left" | "right" | "none" = "none";
+  if (avgSignedPelvicObliquity > 3) pelvicDropSide = "right";
+  else if (avgSignedPelvicObliquity < -3) pelvicDropSide = "left";
+  const pelvicDropDetected = avgPelvicObliquity >= 3.5;
+
   const avgSignedLateralLean = avg(lateralLeans);
   const lateralFallSeverity = Math.min(1, Math.abs(avgSignedLateralLean) / 12);
   const forwardFallSeverity = Math.min(1, avgHeadForward / 25);
@@ -436,6 +514,40 @@ export function computeSessionMetrics(
     fallRiskSeverity = Math.max(forwardFallSeverity, Math.min(1, avgForwardLean / 20));
   }
   const fallRiskDetected = fallRiskSeverity >= 0.35;
+
+  const earlySliceEnd = Math.max(1, Math.floor(frameMetrics.length / 3));
+  const lateSliceStart = Math.max(0, frameMetrics.length - earlySliceEnd);
+  const earlyForwardLean = avg(forwardLeans.slice(0, earlySliceEnd));
+  const lateForwardLean = avg(forwardLeans.slice(lateSliceStart));
+  const earlyLateralLean = avg(lateralLeans.slice(0, earlySliceEnd).map(Math.abs));
+  const lateLateralLean = avg(lateralLeans.slice(lateSliceStart).map(Math.abs));
+  const earlyLeftFoot = leftFootYs.slice(0, earlySliceEnd);
+  const earlyRightFoot = rightFootYs.slice(0, earlySliceEnd);
+  const lateLeftFoot = leftFootYs.slice(lateSliceStart);
+  const lateRightFoot = rightFootYs.slice(lateSliceStart);
+  const earlyToeClearance = Math.min(
+    Math.max(0, median(earlyLeftFoot) - Math.min(...earlyLeftFoot)),
+    Math.max(0, median(earlyRightFoot) - Math.min(...earlyRightFoot))
+  );
+  const lateToeClearance = Math.min(
+    Math.max(0, median(lateLeftFoot) - Math.min(...lateLeftFoot)),
+    Math.max(0, median(lateRightFoot) - Math.min(...lateRightFoot))
+  );
+  const fatigueDriftScore = clamp(
+    (Math.max(0, lateForwardLean - earlyForwardLean) / 10) * 0.4 +
+    (Math.max(0, lateLateralLean - earlyLateralLean) / 8) * 0.2 +
+    (Math.max(0, earlyToeClearance - lateToeClearance) / 0.02) * 0.4,
+    0,
+    1
+  );
+  const fatigueObserved = fatigueDriftScore >= 0.35;
+
+  const walkingConfidence: SessionMetrics["walkingConfidence"] =
+    fallRiskSeverity >= 0.6 || toeDragRiskDetected || weightShiftAsymmetry >= 0.18 || phases.doubleSupportPercent >= 32
+      ? "support-recommended"
+      : fallRiskSeverity >= 0.35 || fatigueObserved || phases.doubleSupportPercent >= 24 || estimatedStepLengthAsymmetry >= 0.2
+      ? "watch"
+      : "steady";
 
   // ---- Overall scores ----
   const overallSymmetry = avg([
@@ -510,10 +622,24 @@ export function computeSessionMetrics(
     legPreference: phases.legPreference,
     weightShiftAsymmetry,
     preferredWeightSide,
+    supportPhaseAsymmetry,
+    estimatedStepLengthAsymmetry,
 
     fallRiskDetected,
     fallRiskDirection,
     fallRiskSeverity,
+    walkingConfidence,
+
+    leftToeClearance,
+    rightToeClearance,
+    toeDragRiskDetected,
+    toeDragRiskSide,
+
+    avgPelvicObliquity,
+    pelvicDropDetected,
+    pelvicDropSide,
+    fatigueDriftScore,
+    fatigueObserved,
 
     stepWidth,
     lateralDeviation,
