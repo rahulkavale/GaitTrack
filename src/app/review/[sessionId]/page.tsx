@@ -47,7 +47,7 @@ interface SessionData {
 }
 
 const VIEW_LABELS: Record<string, string> = {
-  reconciled: "Combined Summary",
+  reconciled: "Combined View",
   "side-left": "Left Side",
   "side-right": "Right Side",
   front: "Front",
@@ -231,10 +231,10 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
             <button
               onClick={() => setActiveTab("reconciled")}
               className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-medium ${
-                activeTab === "reconciled" ? "bg-green-600 text-white" : "text-gray-400"
+              activeTab === "reconciled" ? "bg-green-600 text-white" : "text-gray-400"
               }`}
             >
-              Combined Summary
+              Combined View
             </button>
             {recordings.map((rec) => (
               <button
@@ -253,7 +253,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         {/* Active tab description */}
         {hasMultipleAngles && activeTab === "reconciled" && (
           <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-3 text-xs text-green-300">
-            Combined summary: best metrics from each camera angle merged into one analysis.
+            Combined view: best metrics from each camera angle merged into one analysis.
             Side view for joint angles, front view for lateral movement.
           </div>
         )}
@@ -275,7 +275,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                   overviewMode === "clinical" ? "bg-green-600 text-white" : "text-gray-400"
                 }`}
               >
-                Detailed Analysis
+                Detailed View
               </button>
             </div>
             {/* Gait Report */}
@@ -325,12 +325,12 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                 }`}
                 disabled={activeTab === "reconciled" || !activeFrameData || !activeFrameMetrics}
               >
-                Metric Replay
+                Focused Replay
               </button>
             </div>
             {!focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
               <div className="rounded-xl border border-green-800/50 bg-green-900/20 p-3 text-xs text-green-200">
-                Metric replay is available for this angle. Open Summary or Detailed Analysis and tap <span className="font-semibold">Watch Focused Replay</span> on a supported metric.
+                Focused replay is available for this angle. Open Summary or Detailed View and tap <span className="font-semibold">Watch Focused Replay</span> on a supported metric.
               </div>
             )}
             {replayMode === "metric" && focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
@@ -392,7 +392,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                   advancedMode === "raw" ? "bg-green-600 text-white" : "text-gray-400"
                 }`}
               >
-                Advanced Data
+                Raw Data
               </button>
             </div>
             {activeMetrics ? (

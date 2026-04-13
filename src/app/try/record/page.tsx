@@ -437,7 +437,7 @@ export default function TryRecordPage() {
                   replayMode === "metric" ? "bg-green-600 text-white" : "text-gray-400"
                 }`}
               >
-                Metric Replay
+                Focused Replay
               </button>
             </div>
             {replayMode === "metric" ? (
@@ -451,7 +451,7 @@ export default function TryRecordPage() {
                 />
               ) : (
                 <div className="rounded-xl border border-white/10 bg-gray-800 p-4 text-sm text-gray-400">
-                  Open Summary or Detailed Analysis and tap <span className="font-medium text-white">Watch Focused Replay</span> on a supported metric.
+                  Open Summary or Detailed View and tap <span className="font-medium text-white">Watch Focused Replay</span> on a supported metric.
                 </div>
               )
             ) : (

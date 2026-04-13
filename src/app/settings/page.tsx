@@ -157,7 +157,7 @@ export default function SettingsPage() {
               settingsMode === "basic" ? "bg-green-600 text-white" : "text-gray-400"
             }`}
           >
-            Basic Settings
+            Basics
           </button>
           <button
             onClick={() => setSettingsMode("advanced")}
@@ -165,7 +165,7 @@ export default function SettingsPage() {
               settingsMode === "advanced" ? "bg-green-600 text-white" : "text-gray-400"
             }`}
           >
-            Advanced Rules
+            Advanced
           </button>
         </div>
 
