@@ -22,6 +22,10 @@ export type TimelineMetricId =
   | "left_hip_angle"
   | "right_hip_angle"
   | "left_ankle_angle"
+  | "left_arm_swing"
+  | "right_arm_swing"
+  | "weight_shift"
+  | "fall_risk"
   | "trunk_forward_lean"
   | "trunk_lateral_lean"
   | "head_tilt"
@@ -113,6 +117,10 @@ const defaultTimelines: Record<TimelineMetricId, TimelineMetricPreference> = {
   left_hip_angle: { enabled: true },
   right_hip_angle: { enabled: true },
   left_ankle_angle: { enabled: true },
+  left_arm_swing: { enabled: true },
+  right_arm_swing: { enabled: true },
+  weight_shift: { enabled: true },
+  fall_risk: { enabled: true },
   trunk_forward_lean: { enabled: true },
   trunk_lateral_lean: { enabled: true },
   head_tilt: { enabled: true },
@@ -354,6 +362,50 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
     source: "Direct pose-derived geometric angle.",
   },
   {
+    id: "left_arm_swing",
+    kind: "timeline",
+    label: "Left Arm Swing Trace",
+    shortDescription: "Frame-by-frame left arm swing position.",
+    detailDescription:
+      "Plots the left shoulder-arm angle through the session so you can see how the left arm advances and returns during walking.",
+    inputs: ["left shoulder, elbow, hip landmarks"],
+    formula: "Per-frame shoulder-arm angle derived from pose landmarks on the left side.",
+    source: "Direct pose-derived geometric angle used as an observational arm swing signal.",
+  },
+  {
+    id: "right_arm_swing",
+    kind: "timeline",
+    label: "Right Arm Swing Trace",
+    shortDescription: "Frame-by-frame right arm swing position.",
+    detailDescription:
+      "Plots the right shoulder-arm angle through the session so you can see how the right arm advances and returns during walking.",
+    inputs: ["right shoulder, elbow, hip landmarks"],
+    formula: "Per-frame shoulder-arm angle derived from pose landmarks on the right side.",
+    source: "Direct pose-derived geometric angle used as an observational arm swing signal.",
+  },
+  {
+    id: "weight_shift",
+    kind: "timeline",
+    label: "Weight Shift Trace",
+    shortDescription: "Frame-by-frame left-right loading bias estimate.",
+    detailDescription:
+      "Estimates whether the body appears to be loading more on the left or right side over time. This is a heuristic trace based on pose-derived lower-limb support signals, not a force-plate measurement.",
+    inputs: ["left ankle vertical position", "right ankle vertical position"],
+    formula: "Signed normalized support bias derived from the difference between left and right ankle support height per frame.",
+    source: "Internal project heuristic using pose landmarks. Not a validated load measurement.",
+  },
+  {
+    id: "fall_risk",
+    kind: "timeline",
+    label: "Fall Tendency Trace",
+    shortDescription: "Frame-by-frame directional balance-loss signal.",
+    detailDescription:
+      "Tracks how strongly the pose suggests a loss of balance tendency, using side lean and forward posture together. This is a heuristic directional signal, not a clinical fall prediction model.",
+    inputs: ["trunk lateral lean", "trunk forward lean", "head forward angle"],
+    formula: "Per-frame severity heuristic from lateral trunk lean magnitude and forward posture, normalized to 0-100%.",
+    source: "Internal project heuristic based on pose-derived posture signals.",
+  },
+  {
     id: "trunk_forward_lean",
     kind: "timeline",
     label: "Trunk Forward Lean Trace",
@@ -465,6 +517,10 @@ export function getTimelineMetricOrder(): TimelineMetricId[] {
     "left_hip_angle",
     "right_hip_angle",
     "left_ankle_angle",
+    "left_arm_swing",
+    "right_arm_swing",
+    "weight_shift",
+    "fall_risk",
     "trunk_forward_lean",
     "trunk_lateral_lean",
     "head_tilt",

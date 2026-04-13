@@ -5,7 +5,7 @@ import type { TimelineMetricId } from "@/lib/metric-settings";
 export interface MetricReplayConfig {
   id: TimelineMetricId;
   label: string;
-  frameMetricKey: keyof FrameMetrics;
+  frameMetricKey?: keyof FrameMetrics;
   unit: string;
   normalMin?: number;
   normalMax?: number;
@@ -81,6 +81,63 @@ export const METRIC_REPLAY_CONFIGS: MetricReplayConfig[] = [
     ],
   },
   {
+    id: "left_arm_swing",
+    label: "Left Arm Swing",
+    frameMetricKey: "leftShoulderAngle",
+    unit: "°",
+    normalMin: 20,
+    normalMax: 60,
+    joints: [LANDMARK.LEFT_SHOULDER, LANDMARK.LEFT_ELBOW, LANDMARK.LEFT_WRIST],
+    segments: [
+      [LANDMARK.LEFT_SHOULDER, LANDMARK.LEFT_ELBOW],
+      [LANDMARK.LEFT_ELBOW, LANDMARK.LEFT_WRIST],
+    ],
+  },
+  {
+    id: "right_arm_swing",
+    label: "Right Arm Swing",
+    frameMetricKey: "rightShoulderAngle",
+    unit: "°",
+    normalMin: 20,
+    normalMax: 60,
+    joints: [LANDMARK.RIGHT_SHOULDER, LANDMARK.RIGHT_ELBOW, LANDMARK.RIGHT_WRIST],
+    segments: [
+      [LANDMARK.RIGHT_SHOULDER, LANDMARK.RIGHT_ELBOW],
+      [LANDMARK.RIGHT_ELBOW, LANDMARK.RIGHT_WRIST],
+    ],
+  },
+  {
+    id: "weight_shift",
+    label: "Weight Shift",
+    unit: "%",
+    normalMin: -12,
+    normalMax: 12,
+    joints: [LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP, LANDMARK.LEFT_KNEE, LANDMARK.RIGHT_KNEE, LANDMARK.LEFT_ANKLE, LANDMARK.RIGHT_ANKLE],
+    segments: [
+      [LANDMARK.LEFT_HIP, LANDMARK.LEFT_KNEE],
+      [LANDMARK.LEFT_KNEE, LANDMARK.LEFT_ANKLE],
+      [LANDMARK.RIGHT_HIP, LANDMARK.RIGHT_KNEE],
+      [LANDMARK.RIGHT_KNEE, LANDMARK.RIGHT_ANKLE],
+      [LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP],
+    ],
+  },
+  {
+    id: "fall_risk",
+    label: "Fall Tendency",
+    unit: "%",
+    normalMin: 0,
+    normalMax: 35,
+    joints: [LANDMARK.LEFT_SHOULDER, LANDMARK.RIGHT_SHOULDER, LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP, LANDMARK.NOSE],
+    segments: [
+      [LANDMARK.LEFT_SHOULDER, LANDMARK.RIGHT_SHOULDER],
+      [LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP],
+      [LANDMARK.LEFT_SHOULDER, LANDMARK.LEFT_HIP],
+      [LANDMARK.RIGHT_SHOULDER, LANDMARK.RIGHT_HIP],
+      [LANDMARK.NOSE, LANDMARK.LEFT_SHOULDER],
+      [LANDMARK.NOSE, LANDMARK.RIGHT_SHOULDER],
+    ],
+  },
+  {
     id: "trunk_forward_lean",
     label: "Trunk Forward Lean",
     frameMetricKey: "trunkForwardLean",
@@ -141,6 +198,39 @@ export const METRIC_REPLAY_CONFIGS: MetricReplayConfig[] = [
 
 export function getMetricReplayConfig(metricId: TimelineMetricId) {
   return METRIC_REPLAY_CONFIGS.find((config) => config.id === metricId) ?? METRIC_REPLAY_CONFIGS[0];
+}
+
+export function getMetricValue(
+  metricId: TimelineMetricId,
+  frameMetric: FrameMetrics
+) {
+  switch (metricId) {
+    case "left_arm_swing":
+      return frameMetric.leftShoulderAngle;
+    case "right_arm_swing":
+      return frameMetric.rightShoulderAngle;
+    case "weight_shift": {
+      const delta = frameMetric.rightAnkleY - frameMetric.leftAnkleY;
+      return Math.max(-100, Math.min(100, delta * 800));
+    }
+    case "fall_risk": {
+      const lateralSeverity = Math.min(100, (Math.abs(frameMetric.trunkLateralLean) / 12) * 100);
+      const forwardSeverity = Math.min(
+        100,
+        Math.max(
+          (frameMetric.trunkForwardLean / 20) * 100,
+          (frameMetric.headForwardAngle / 25) * 100
+        )
+      );
+      return Math.max(lateralSeverity, forwardSeverity);
+    }
+    default: {
+      const config = getMetricReplayConfig(metricId);
+      if (!config.frameMetricKey) return 0;
+      const raw = frameMetric[config.frameMetricKey];
+      return typeof raw === "number" ? raw : 0;
+    }
+  }
 }
 
 export function getMetricSeverity(

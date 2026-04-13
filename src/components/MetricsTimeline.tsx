@@ -13,10 +13,11 @@ import {
 } from "recharts";
 import type { FrameMetrics } from "@/lib/types";
 import type { MetricPreferences, TimelineMetricId } from "@/lib/metric-settings";
+import { getMetricValue } from "@/lib/metric-replay";
 
 interface MetricsTimelineProps {
   frameMetrics: FrameMetrics[];
-  metric: keyof FrameMetrics;
+  metricId: TimelineMetricId;
   title: string;
   unit: string;
   // Optional: overlay data from another session for comparison
@@ -29,7 +30,7 @@ interface MetricsTimelineProps {
 
 export function MetricsTimeline({
   frameMetrics,
-  metric,
+  metricId,
   title,
   unit,
   comparisonData,
@@ -46,10 +47,10 @@ export function MetricsTimeline({
       .filter((_, i) => i % step === 0)
       .map((fm) => ({
         time: Math.round((fm.timestamp / 1000) * 10) / 10, // seconds, 1 decimal
-        value: Math.round((fm[metric] as number) * 10) / 10,
+        value: Math.round(getMetricValue(metricId, fm) * 10) / 10,
         ...(comparisonData ? {} : {}),
       }));
-  }, [frameMetrics, metric, comparisonData]);
+  }, [frameMetrics, metricId, comparisonData]);
 
   const compData = useMemo(() => {
     if (!comparisonData) return null;
@@ -59,9 +60,9 @@ export function MetricsTimeline({
       .filter((_, i) => i % step === 0)
       .map((fm) => ({
         time: Math.round((fm.timestamp / 1000) * 10) / 10,
-        comparison: Math.round((fm[metric] as number) * 10) / 10,
+        comparison: Math.round(getMetricValue(metricId, fm) * 10) / 10,
       }));
-  }, [comparisonData, metric]);
+  }, [comparisonData, metricId]);
 
   // Merge comparison data by time alignment (normalize to 0-100% of session)
   const mergedData = useMemo(() => {
@@ -177,7 +178,7 @@ export function GaitTimelines({
       {enabled("left_knee_angle") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="leftKneeAngle"
+          metricId="left_knee_angle"
           title="Left Knee Angle"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -189,7 +190,7 @@ export function GaitTimelines({
       {enabled("right_knee_angle") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="rightKneeAngle"
+          metricId="right_knee_angle"
           title="Right Knee Angle"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -201,7 +202,7 @@ export function GaitTimelines({
       {enabled("left_hip_angle") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="leftHipAngle"
+          metricId="left_hip_angle"
           title="Left Hip Angle"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -211,7 +212,7 @@ export function GaitTimelines({
       {enabled("right_hip_angle") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="rightHipAngle"
+          metricId="right_hip_angle"
           title="Right Hip Angle"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -221,7 +222,7 @@ export function GaitTimelines({
       {enabled("left_ankle_angle") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="leftAnkleAngle"
+          metricId="left_ankle_angle"
           title="Left Ankle Angle"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -230,10 +231,58 @@ export function GaitTimelines({
           normalMax={95}
         />
       )}
+      {enabled("left_arm_swing") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="left_arm_swing"
+          title="Left Arm Swing"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={20}
+          normalMax={60}
+        />
+      )}
+      {enabled("right_arm_swing") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="right_arm_swing"
+          title="Right Arm Swing"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={20}
+          normalMax={60}
+        />
+      )}
+      {enabled("weight_shift") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="weight_shift"
+          title="Weight Shift"
+          unit="%"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={-12}
+          normalMax={12}
+        />
+      )}
+      {enabled("fall_risk") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="fall_risk"
+          title="Fall Tendency"
+          unit="%"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={0}
+          normalMax={35}
+        />
+      )}
       {enabled("trunk_forward_lean") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="trunkForwardLean"
+          metricId="trunk_forward_lean"
           title="Trunk Forward Lean"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -243,7 +292,7 @@ export function GaitTimelines({
       {enabled("trunk_lateral_lean") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="trunkLateralLean"
+          metricId="trunk_lateral_lean"
           title="Trunk Lateral Lean"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -253,7 +302,7 @@ export function GaitTimelines({
       {enabled("head_tilt") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="headTilt"
+          metricId="head_tilt"
           title="Head Tilt (Lateral)"
           unit="°"
           comparisonData={comparisonMetrics}
@@ -263,7 +312,7 @@ export function GaitTimelines({
       {enabled("knee_symmetry") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
-          metric="kneeSymmetry"
+          metricId="knee_symmetry"
           title="Knee Symmetry (per frame)"
           unit=""
           comparisonData={comparisonMetrics}

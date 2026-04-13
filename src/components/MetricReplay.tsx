@@ -20,6 +20,7 @@ import {
   findFrameIndexForTime,
   getMetricReplayConfig,
   getMetricSeverity,
+  getMetricValue,
   getSeverityColor,
   METRIC_REPLAY_CONFIGS,
 } from "@/lib/metric-replay";
@@ -35,6 +36,7 @@ interface MetricReplayProps {
 
 function formatMetricValue(value: number, unit: string) {
   if (unit === "") return `${Math.round(value * 100)}%`;
+  if (unit === "%") return `${Math.round(value)}%`;
   return `${Math.round(value * 10) / 10}${unit}`;
 }
 
@@ -50,6 +52,14 @@ function describeHighlight(metricId: TimelineMetricId) {
       return "The overlay highlights the right side of the trunk and upper leg, centered on the hip joint.";
     case "left_ankle_angle":
       return "The overlay highlights the lower leg and foot on the left side, centered on the ankle.";
+    case "left_arm_swing":
+      return "The overlay highlights the left upper arm and forearm to show how the left arm is swinging through the step cycle.";
+    case "right_arm_swing":
+      return "The overlay highlights the right upper arm and forearm to show how the right arm is swinging through the step cycle.";
+    case "weight_shift":
+      return "The overlay highlights both legs and the pelvis so you can see which side appears to be taking more support at each moment.";
+    case "fall_risk":
+      return "The overlay highlights the trunk, pelvis, and head so you can see where directional balance loss is building during the replay.";
     case "trunk_forward_lean":
       return "The overlay highlights the trunk lines from shoulders to hips to show forward body posture.";
     case "trunk_lateral_lean":
@@ -134,10 +144,8 @@ export function MetricReplay({
   const selectedMetric = getMetricReplayConfig(selectedMetricId);
   const selectedMetricDefinition = getMetricDefinition(selectedMetricId);
   const currentMetric = frameMetrics[currentFrameIndex];
-  const rawValue = currentMetric?.[selectedMetric.frameMetricKey];
-  const metricValue = typeof rawValue === "number"
-    ? (selectedMetric.absoluteValue ? Math.abs(rawValue) : rawValue)
-    : 0;
+  const computedValue = currentMetric ? getMetricValue(selectedMetricId, currentMetric) : 0;
+  const metricValue = selectedMetric.absoluteValue ? Math.abs(computedValue) : computedValue;
   const severity = getMetricSeverity(metricValue, selectedMetric);
   const severityColor = getSeverityColor(severity);
 
@@ -145,14 +153,33 @@ export function MetricReplay({
     const maxPoints = 160;
     const step = Math.max(1, Math.floor(frameMetrics.length / maxPoints));
     return frameMetrics.filter((_, index) => index % step === 0).map((metric) => {
-      const raw = metric[selectedMetric.frameMetricKey];
-      const value = typeof raw === "number" ? raw : 0;
+      const value = getMetricValue(selectedMetric.id, metric);
       return {
         time: Math.round(metric.timestamp / 100) / 10,
         value: selectedMetric.absoluteValue ? Math.abs(value) : value,
       };
     });
   }, [frameMetrics, selectedMetric]);
+
+  const dynamicExplanation = useMemo(() => {
+    if (!currentMetric) return null;
+    if (selectedMetricId === "weight_shift") {
+      if (metricValue > 12) return "At this moment, more support appears to shift onto the right leg, so the trace moves right of center and the overlay escalates in color.";
+      if (metricValue < -12) return "At this moment, more support appears to shift onto the left leg, so the trace moves left of center and the overlay escalates in color.";
+      return "At this moment, support looks fairly centered between both legs, so the replay stays in the expected band.";
+    }
+    if (selectedMetricId === "fall_risk") {
+      const lateral = currentMetric.trunkLateralLean;
+      if (Math.abs(lateral) >= 5 && Math.abs(lateral) >= currentMetric.headForwardAngle / 2) {
+        return `The strongest current balance signal is a ${lateral > 0 ? "right" : "left"}ward lean of the trunk, which raises the fall-tendency trace.`;
+      }
+      if (currentMetric.trunkForwardLean >= 10 || currentMetric.headForwardAngle >= 12) {
+        return "The strongest current balance signal is forward lean, so the fall-tendency trace rises as the body pitches ahead of neutral.";
+      }
+      return "Current posture signals stay close to neutral, so the fall-tendency trace remains in the lower band.";
+    }
+    return null;
+  }, [currentMetric, metricValue, selectedMetricId]);
 
   const abnormalWindow = useMemo(() => {
     if (chartData.length === 0 || selectedMetric.normalMin == null || selectedMetric.normalMax == null) {
@@ -412,7 +439,7 @@ export function MetricReplay({
         <div className="rounded-xl bg-gray-800 p-3">
           <div className="text-[11px] uppercase tracking-[0.18em] text-gray-500">Why The Color Changed</div>
           <p className="mt-2 text-xs text-gray-300">
-            {describeSeverity(selectedMetric.label, severity, selectedMetric.unit)}
+            {dynamicExplanation ?? describeSeverity(selectedMetric.label, severity, selectedMetric.unit)}
           </p>
         </div>
         <div className="rounded-xl bg-gray-800 p-3">

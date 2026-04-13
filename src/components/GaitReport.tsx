@@ -128,6 +128,23 @@ function focusMetricForFeature(featureId: string): TimelineMetricId | null {
   }
 }
 
+function ActionButton({
+  onClick,
+  label = "Watch Focused Replay",
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="mt-2 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
+    >
+      {label}
+    </button>
+  );
+}
+
 function formatSeverityLabel(severity: Severity) {
   return severity === "normal" ? "within expected range" : severity;
 }
@@ -313,12 +330,7 @@ export function GaitReport({
                 <div className="text-right">
                   <div className="text-lg font-mono font-bold text-white">{pm.value}</div>
                   {pm.metricId && focusMetricForSummary(pm.metricId) && onFocusMetric && (
-                    <button
-                      onClick={() => onFocusMetric(focusMetricForSummary(pm.metricId)!)}
-                      className="mt-2 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
-                    >
-                      Watch Focused Replay
-                    </button>
+                    <ActionButton onClick={() => onFocusMetric(focusMetricForSummary(pm.metricId)!)} />
                   )}
                 </div>
               </div>
@@ -338,12 +350,7 @@ export function GaitReport({
                   </div>
                   <p className="text-xs text-gray-300">{p.parentDescription}</p>
                   {focusMetricForFeature(p.id) && onFocusMetric && (
-                    <button
-                      onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)}
-                      className="mt-3 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
-                    >
-                      Watch Focused Replay
-                    </button>
+                    <ActionButton onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)} />
                   )}
                 </div>
               ))}
@@ -388,6 +395,7 @@ export function GaitReport({
                   {m.preferredWeightSide === "balanced" ? "balanced" : `favoring ${m.preferredWeightSide}`}
                 </span>
               </div>
+              {onFocusMetric && <ActionButton onClick={() => onFocusMetric("weight_shift")} />}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
@@ -396,6 +404,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[leftKneeStatus.severity]}`}>
                     {formatSeverityLabel(leftKneeStatus.severity)}
                   </p>
+                  {onFocusMetric && <ActionButton onClick={() => onFocusMetric("left_knee_angle")} label="Focus Left Knee" />}
                 </div>
                 <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
                   <p className="text-xs uppercase tracking-wide text-gray-500">Right knee bend</p>
@@ -403,6 +412,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[rightKneeStatus.severity]}`}>
                     {formatSeverityLabel(rightKneeStatus.severity)}
                   </p>
+                  {onFocusMetric && <ActionButton onClick={() => onFocusMetric("right_knee_angle")} label="Focus Right Knee" />}
                 </div>
               </div>
 
@@ -413,6 +423,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[leftArmStatus.severity]}`}>
                     {formatSeverityLabel(leftArmStatus.severity)}
                   </p>
+                  {onFocusMetric && <ActionButton onClick={() => onFocusMetric("left_arm_swing")} label="Focus Left Arm" />}
                 </div>
                 <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
                   <p className="text-xs uppercase tracking-wide text-gray-500">Right arm swing</p>
@@ -420,6 +431,7 @@ export function GaitReport({
                   <p className={`mt-1 text-xs ${SEV_COLORS[rightArmStatus.severity]}`}>
                     {formatSeverityLabel(rightArmStatus.severity)}
                   </p>
+                  {onFocusMetric && <ActionButton onClick={() => onFocusMetric("right_arm_swing")} label="Focus Right Arm" />}
                 </div>
               </div>
 
@@ -436,6 +448,7 @@ export function GaitReport({
                   {m.fallRiskDetected ? `${fallSeverityLabel} ${directionLabel(m.fallRiskDirection)}` : "not flagged"}
                 </span>
               </div>
+              {onFocusMetric && <ActionButton onClick={() => onFocusMetric("fall_risk")} />}
             </div>
           </div>
         </div>
@@ -456,12 +469,7 @@ export function GaitReport({
                 </div>
                 <p className="text-xs text-gray-300">{p.clinicalDescription}</p>
                 {focusMetricForFeature(p.id) && onFocusMetric && (
-                  <button
-                    onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)}
-                    className="mt-3 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm active:bg-green-700"
-                  >
-                    Watch Focused Replay
-                  </button>
+                  <ActionButton onClick={() => onFocusMetric(focusMetricForFeature(p.id)!)} />
                 )}
               </div>
             ))}
