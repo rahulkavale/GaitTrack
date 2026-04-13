@@ -40,6 +40,7 @@ export default function TryRecordPage() {
   const [recordedMimeType, setRecordedMimeType] = useState<string>("video/webm");
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<"analysis" | "replay">("analysis");
+  const [replayMode, setReplayMode] = useState<"standard" | "metric">("standard");
   const [sourceMode, setSourceMode] = useState<"camera" | "upload">("camera");
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
   const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
@@ -308,6 +309,7 @@ export default function TryRecordPage() {
 
     setSessionResult(metrics);
     setActiveSection("analysis");
+    setReplayMode("standard");
     setIsSaving(false);
   }, [recordedMimeType, sourceMode, uploadedVideoUrl]);
 
@@ -414,21 +416,47 @@ export default function TryRecordPage() {
             frameMetrics={frameMetricsRef.current}
             onFocusMetric={(metricId) => {
               setFocusedMetricId(metricId);
+              setReplayMode("metric");
               setActiveSection("replay");
             }}
           />
         ) : recordingId ? (
           <div className="space-y-4">
-            {focusedMetricId && (
-              <MetricReplay
-                recordingId={recordingId}
-                frameData={framesRef.current}
-                frameMetrics={frameMetricsRef.current}
-                initialMetricId={focusedMetricId}
-                title="On-demand metric replay"
-              />
+            <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+              <button
+                onClick={() => setReplayMode("standard")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  replayMode === "standard" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Standard Replay
+              </button>
+              <button
+                onClick={() => setReplayMode("metric")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  replayMode === "metric" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Metric Replay
+              </button>
+            </div>
+            {replayMode === "metric" ? (
+              focusedMetricId ? (
+                <MetricReplay
+                  recordingId={recordingId}
+                  frameData={framesRef.current}
+                  frameMetrics={frameMetricsRef.current}
+                  initialMetricId={focusedMetricId}
+                  title="On-demand metric replay"
+                />
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-gray-800 p-4 text-sm text-gray-400">
+                  Open Summary or Detailed Analysis and tap <span className="font-medium text-white">Watch Focused Replay</span> on a supported metric.
+                </div>
+              )
+            ) : (
+              <RecordingVideo recordingId={recordingId} label="This device's replay" />
             )}
-            <RecordingVideo recordingId={recordingId} label="This device's replay" />
           </div>
         ) : (
           <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-400">
@@ -462,6 +490,7 @@ export default function TryRecordPage() {
               setSelectedVideoName(null);
               setSourceDurationSeconds(null);
               setFocusedMetricId(null);
+              setReplayMode("standard");
               setShowGuide(true);
             }}
             className="flex-1 bg-gray-800 text-white py-3 rounded-xl text-sm active:bg-gray-700"

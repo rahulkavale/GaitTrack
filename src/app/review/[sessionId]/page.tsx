@@ -98,6 +98,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
   const [activeSection, setActiveSection] = useState<"overview" | "replay" | "advanced">("overview");
   const [overviewMode, setOverviewMode] = useState<"parent" | "clinical">("parent");
   const [advancedMode, setAdvancedMode] = useState<"trends" | "raw">("trends");
+  const [replayMode, setReplayMode] = useState<"standard" | "metric">("standard");
   const [activeTab, setActiveTab] = useState<"reconciled" | string>("reconciled");
   const [focusedMetricId, setFocusedMetricId] = useState<TimelineMetricId | null>(null);
 
@@ -289,6 +290,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                   activeTab !== "reconciled" && activeFrameData && activeFrameMetrics
                     ? (metricId) => {
                         setFocusedMetricId(metricId);
+                        setReplayMode("metric");
                         setActiveSection("replay");
                       }
                     : undefined
@@ -307,12 +309,31 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
             <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
               Replay videos are stored only on the recording device in local browser storage. They are never uploaded to cloud storage, so they may be unavailable on a different phone or browser.
             </div>
+            <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
+              <button
+                onClick={() => setReplayMode("standard")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  replayMode === "standard" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+              >
+                Standard Replay
+              </button>
+              <button
+                onClick={() => setReplayMode("metric")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
+                  replayMode === "metric" ? "bg-green-600 text-white" : "text-gray-400"
+                }`}
+                disabled={activeTab === "reconciled" || !activeFrameData || !activeFrameMetrics}
+              >
+                Metric Replay
+              </button>
+            </div>
             {!focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
               <div className="rounded-xl border border-green-800/50 bg-green-900/20 p-3 text-xs text-green-200">
                 Metric replay is available for this angle. Open Summary or Detailed Analysis and tap <span className="font-semibold">Watch Focused Replay</span> on a supported metric.
               </div>
             )}
-            {focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
+            {replayMode === "metric" && focusedMetricId && activeTab !== "reconciled" && activeFrameData && activeFrameMetrics && (
               <MetricReplay
                 recordingId={recordings.find(r => r.view_angle === activeTab)?.id ?? ""}
                 frameData={activeFrameData}
@@ -322,23 +343,32 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
                 title="On-demand metric replay"
               />
             )}
-            <p className="text-xs text-gray-500">
-              Replay for {activeTab === "reconciled" ? "all recorded angles" : VIEW_LABELS[activeTab] ?? activeTab}
-            </p>
-            {recordings.length === 0 && (
-              <p className="text-xs text-gray-500">No recordings in this session.</p>
+            {replayMode === "standard" && (
+              <>
+                <p className="text-xs text-gray-500">
+                  Replay for {activeTab === "reconciled" ? "all recorded angles" : VIEW_LABELS[activeTab] ?? activeTab}
+                </p>
+                {recordings.length === 0 && (
+                  <p className="text-xs text-gray-500">No recordings in this session.</p>
+                )}
+                {recordings.map((rec) => {
+                  const show = activeTab === "reconciled" || activeTab === rec.view_angle;
+                  if (!show) return null;
+                  return (
+                    <RecordingVideo
+                      key={rec.id}
+                      recordingId={rec.id}
+                      label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
+                    />
+                  );
+                })}
+              </>
             )}
-            {recordings.map((rec) => {
-              const show = activeTab === "reconciled" || activeTab === rec.view_angle;
-              if (!show) return null;
-              return (
-                <RecordingVideo
-                  key={rec.id}
-                  recordingId={rec.id}
-                  label={`${VIEW_LABELS[rec.view_angle] ?? rec.view_angle} view`}
-                />
-              );
-            })}
+            {replayMode === "metric" && (!focusedMetricId || activeTab === "reconciled" || !activeFrameData || !activeFrameMetrics) && (
+              <div className="rounded-xl border border-white/10 bg-gray-800 p-4 text-sm text-gray-400">
+                Metric replay works on a single recorded angle with saved local replay video. Choose an angle and launch it from a supported metric in Overview.
+              </div>
+            )}
           </div>
         )}
 
