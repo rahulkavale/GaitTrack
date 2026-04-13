@@ -128,6 +128,16 @@ function focusMetricForFeature(featureId: string): TimelineMetricId | null {
   }
 }
 
+function formatSeverityLabel(severity: Severity) {
+  return severity === "normal" ? "within expected range" : severity;
+}
+
+function directionLabel(direction: SessionMetrics["fallRiskDirection"]) {
+  if (direction === "neutral") return "no clear direction";
+  if (direction === "forward") return "forward";
+  return `toward the ${direction}`;
+}
+
 // ---- Main component ----
 
 export function GaitReport({
@@ -192,6 +202,13 @@ export function GaitReport({
 
   const visiblePatterns = patterns.filter((pattern) => preferences.features[pattern.id].enabled);
   const detectedPatterns = visiblePatterns.filter(p => p.detected);
+  const leftKneeStatus = classifyRange(leftKneeFlexion, NORMS.knee.stanceFlexion);
+  const rightKneeStatus = classifyRange(rightKneeFlexion, NORMS.knee.stanceFlexion);
+  const leftArmStatus = classifyRange(m.leftArmSwingRange, NORMS.armSwing.range);
+  const rightArmStatus = classifyRange(m.rightArmSwingRange, NORMS.armSwing.range);
+  const weightShiftPercent = Math.round(m.weightShiftAsymmetry * 100);
+  const fallSeverityLabel: Severity =
+    m.fallRiskSeverity >= 0.75 ? "severe" : m.fallRiskSeverity >= 0.55 ? "moderate" : m.fallRiskSeverity >= 0.35 ? "mild" : "normal";
 
   // Parent metrics
   const pMetrics = parentMetrics(
@@ -354,6 +371,73 @@ export function GaitReport({
               <div className="text-lg font-mono font-bold">{Math.round(m.strideCadence)}</div>
             </div>
           </div>
+
+          <div className="rounded-2xl border border-white/5 bg-gray-800 p-4 shadow-sm shadow-black/20">
+            <h2 className="text-sm font-medium text-gray-300">Side-Specific Movement Check</h2>
+            <div className="mt-3 space-y-3 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white">Weight shift</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {m.preferredWeightSide === "balanced"
+                      ? `Weight-bearing looks fairly even between legs with about ${weightShiftPercent}% asymmetry.`
+                      : `More loading appears to stay on the ${m.preferredWeightSide} leg, with about ${weightShiftPercent}% asymmetry.`}
+                  </p>
+                </div>
+                <span className={`text-xs ${m.preferredWeightSide === "balanced" ? "text-green-400" : "text-yellow-400"}`}>
+                  {m.preferredWeightSide === "balanced" ? "balanced" : `favoring ${m.preferredWeightSide}`}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Left knee bend</p>
+                  <p className="mt-1 text-sm text-white">{Math.round(leftKneeFlexion)}° bend</p>
+                  <p className={`mt-1 text-xs ${SEV_COLORS[leftKneeStatus.severity]}`}>
+                    {formatSeverityLabel(leftKneeStatus.severity)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Right knee bend</p>
+                  <p className="mt-1 text-sm text-white">{Math.round(rightKneeFlexion)}° bend</p>
+                  <p className={`mt-1 text-xs ${SEV_COLORS[rightKneeStatus.severity]}`}>
+                    {formatSeverityLabel(rightKneeStatus.severity)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Left arm swing</p>
+                  <p className="mt-1 text-sm text-white">{Math.round(m.leftArmSwingRange)}° range</p>
+                  <p className={`mt-1 text-xs ${SEV_COLORS[leftArmStatus.severity]}`}>
+                    {formatSeverityLabel(leftArmStatus.severity)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">Right arm swing</p>
+                  <p className="mt-1 text-sm text-white">{Math.round(m.rightArmSwingRange)}° range</p>
+                  <p className={`mt-1 text-xs ${SEV_COLORS[rightArmStatus.severity]}`}>
+                    {formatSeverityLabel(rightArmStatus.severity)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 rounded-xl border border-white/5 bg-gray-900/60 p-3">
+                <div>
+                  <p className="text-white">Fall tendency</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {m.fallRiskDetected
+                      ? `Balance loss risk was flagged ${directionLabel(m.fallRiskDirection)} during the observed walk.`
+                      : "No strong fall direction was flagged in this recording."}
+                  </p>
+                </div>
+                <span className={`text-xs ${SEV_COLORS[fallSeverityLabel]}`}>
+                  {m.fallRiskDetected ? `${fallSeverityLabel} ${directionLabel(m.fallRiskDirection)}` : "not flagged"}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -411,6 +495,16 @@ export function GaitReport({
             {m.legPreference !== "balanced" && (
               <p className="text-xs text-yellow-400 mt-1">Weight-bearing preference: {m.legPreference} leg</p>
             )}
+            <div className="mt-2 flex justify-between text-xs">
+              <span className="text-gray-400">Weight shift asymmetry</span>
+              <span className="font-mono text-white">{weightShiftPercent}%</span>
+            </div>
+            <div className="mt-1 flex justify-between text-xs">
+              <span className="text-gray-400">Preferred loading side</span>
+              <span className={m.preferredWeightSide === "balanced" ? "text-green-400" : "text-yellow-400"}>
+                {m.preferredWeightSide}
+              </span>
+            </div>
             <div className="text-xs text-gray-500 mt-2">
               Normal: stance 58-62%, double support 16-24%
             </div>
@@ -455,7 +549,40 @@ export function GaitReport({
             <h2 className="text-sm font-medium text-gray-300 mb-3">Arm Swing</h2>
             <CompareBar label="Swing range" left={m.leftArmSwingRange} right={m.rightArmSwingRange} unit="°" />
             <Meter label="Symmetry" value={m.armSwingSymmetry * 100} max={100} unit="%" />
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs text-gray-500">Left arm</div>
+                <div className="mt-1 text-sm font-mono text-white">{Math.round(m.leftArmSwingRange)}°</div>
+                <div className={`mt-1 text-xs ${SEV_COLORS[leftArmStatus.severity]}`}>
+                  {formatSeverityLabel(leftArmStatus.severity)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/5 bg-gray-900/60 p-3">
+                <div className="text-xs text-gray-500">Right arm</div>
+                <div className="mt-1 text-sm font-mono text-white">{Math.round(m.rightArmSwingRange)}°</div>
+                <div className={`mt-1 text-xs ${SEV_COLORS[rightArmStatus.severity]}`}>
+                  {formatSeverityLabel(rightArmStatus.severity)}
+                </div>
+              </div>
+            </div>
             <div className="text-xs text-gray-500 mt-1">Normal range: 25-40° per side</div>
+          </div>
+
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h2 className="text-sm font-medium text-gray-300 mb-3">Balance Direction</h2>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-400">Fall tendency</span>
+              <span className={SEV_COLORS[fallSeverityLabel]}>
+                {m.fallRiskDetected ? `${fallSeverityLabel} ${directionLabel(m.fallRiskDirection)}` : "not flagged"}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className="text-gray-400">Severity score</span>
+              <span className="font-mono text-white">{Math.round(m.fallRiskSeverity * 100)}%</span>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              This is a heuristic directional balance flag based on trunk lean and forward posture, not a clinical fall prediction.
+            </p>
           </div>
         </div>
       )}

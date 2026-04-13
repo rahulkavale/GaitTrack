@@ -111,6 +111,13 @@ export interface SessionMetrics {
   doubleSupportPercent: number;
   stepTimeAsymmetry: number;
   legPreference: "left" | "right" | "balanced";
+  weightShiftAsymmetry: number; // 0-1, higher means more loading imbalance
+  preferredWeightSide: "left" | "right" | "balanced";
+
+  // Balance / fall tendency
+  fallRiskDetected: boolean;
+  fallRiskDirection: "left" | "right" | "forward" | "neutral";
+  fallRiskSeverity: number; // 0-1 heuristic severity
 
   // Walking line (front view)
   stepWidth: number;          // avg distance between feet (normalized)

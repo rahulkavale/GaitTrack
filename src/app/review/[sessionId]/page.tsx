@@ -84,6 +84,8 @@ function recordingToMetrics(rec: Recording): SessionMetrics {
     armSwingSymmetry: 0, guardedArmDetected: false,
     leftStancePercent: 50, rightStancePercent: 50,
     doubleSupportPercent: 20, stepTimeAsymmetry: 0, legPreference: "balanced",
+    weightShiftAsymmetry: 0, preferredWeightSide: "balanced",
+    fallRiskDetected: false, fallRiskDirection: "neutral", fallRiskSeverity: 0,
     stepWidth: 0, lateralDeviation: 0, kneeValgusDetected: false,
     gaitDeviationIndex: 50, overallSymmetry: 0,
   };

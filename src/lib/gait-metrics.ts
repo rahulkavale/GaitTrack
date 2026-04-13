@@ -280,6 +280,8 @@ export function computeSessionMetrics(
     armSwingSymmetry: 0, guardedArmDetected: false,
     leftStancePercent: 50, rightStancePercent: 50,
     doubleSupportPercent: 20, stepTimeAsymmetry: 0, legPreference: "balanced",
+    weightShiftAsymmetry: 0, preferredWeightSide: "balanced",
+    fallRiskDetected: false, fallRiskDirection: "neutral", fallRiskSeverity: 0,
     stepWidth: 0, lateralDeviation: 0, kneeValgusDetected: false,
     gaitDeviationIndex: 50, overallSymmetry: 0,
   };
@@ -384,6 +386,14 @@ export function computeSessionMetrics(
     (avgRightElbow < 120 && rightArmSwingRange < 10);
 
   // ---- Walking line (from front view landmarks) ----
+  const weightShiftAsymmetry = Math.abs(phases.leftStancePercent - phases.rightStancePercent) / 100;
+  const preferredWeightSide =
+    Math.abs(phases.leftStancePercent - phases.rightStancePercent) < 4
+      ? "balanced"
+      : phases.leftStancePercent > phases.rightStancePercent
+      ? "left"
+      : "right";
+
   // Step width: average horizontal distance between ankles
   const stepWidths = frames.map(f => {
     const la = f.landmarks[LANDMARK.LEFT_ANKLE];
@@ -412,6 +422,20 @@ export function computeSessionMetrics(
     return kneeWidth < ankleWidth * 0.85; // knees 15%+ closer than ankles
   }).length;
   const kneeValgusDetected = valgusFrames / frames.length > 0.3;
+
+  const avgSignedLateralLean = avg(lateralLeans);
+  const lateralFallSeverity = Math.min(1, Math.abs(avgSignedLateralLean) / 12);
+  const forwardFallSeverity = Math.min(1, avgHeadForward / 25);
+  let fallRiskDirection: "left" | "right" | "forward" | "neutral" = "neutral";
+  let fallRiskSeverity = 0;
+  if (Math.abs(avgSignedLateralLean) >= 5 && Math.abs(avgSignedLateralLean) >= avgHeadForward / 2) {
+    fallRiskDirection = avgSignedLateralLean > 0 ? "right" : "left";
+    fallRiskSeverity = lateralFallSeverity;
+  } else if (avgHeadForward >= 12 || avgForwardLean >= 10) {
+    fallRiskDirection = "forward";
+    fallRiskSeverity = Math.max(forwardFallSeverity, Math.min(1, avgForwardLean / 20));
+  }
+  const fallRiskDetected = fallRiskSeverity >= 0.35;
 
   // ---- Overall scores ----
   const overallSymmetry = avg([
@@ -484,6 +508,12 @@ export function computeSessionMetrics(
     doubleSupportPercent: phases.doubleSupportPercent,
     stepTimeAsymmetry: phases.stepTimeAsymmetry,
     legPreference: phases.legPreference,
+    weightShiftAsymmetry,
+    preferredWeightSide,
+
+    fallRiskDetected,
+    fallRiskDirection,
+    fallRiskSeverity,
 
     stepWidth,
     lateralDeviation,

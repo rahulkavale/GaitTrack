@@ -71,6 +71,10 @@ export default function RecordPage({
 
   const metricsUpdateCounter = useRef(0);
 
+  const waitForRecordingSurface = useCallback(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }, []);
+
   const ensureLandmarker = useCallback(async () => {
     if (landmarkerRef.current) return landmarkerRef.current;
     setLoadingStatus("Loading pose detection model...");
@@ -142,6 +146,8 @@ export default function RecordPage({
     setSourceDurationSeconds(null);
 
     try {
+      setShowGuide(false);
+      await waitForRecordingSurface();
       await ensureLandmarker();
 
       const objectUrl = URL.createObjectURL(file);
@@ -183,7 +189,7 @@ export default function RecordPage({
       setIsLoading(false);
       setCameraError(err instanceof Error ? err.message : "Failed to analyze video");
     }
-  }, [ensureLandmarker]);
+  }, [ensureLandmarker, waitForRecordingSurface]);
 
   const runDetection = useCallback(() => {
     const video = videoRef.current;

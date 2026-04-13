@@ -101,6 +101,16 @@ export function reconcileViews(
     doubleSupportPercent: s.doubleSupportPercent,
     stepTimeAsymmetry: s.stepTimeAsymmetry,
     legPreference: s.legPreference,
+    weightShiftAsymmetry: s.weightShiftAsymmetry,
+    preferredWeightSide: s.preferredWeightSide,
+
+    // Balance / fall tendency: combine sagittal and frontal signals
+    fallRiskDetected: s.fallRiskDetected || f.fallRiskDetected,
+    fallRiskDirection:
+      f.fallRiskDirection !== "neutral"
+        ? f.fallRiskDirection
+        : s.fallRiskDirection,
+    fallRiskSeverity: Math.max(s.fallRiskSeverity, f.fallRiskSeverity),
 
     // Walking line: front view is authoritative
     stepWidth: f.stepWidth,
