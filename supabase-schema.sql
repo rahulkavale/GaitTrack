@@ -197,5 +197,5 @@ create policy "Parents manage invitations"
 create policy "Invitees see own invitations"
   on invitations for select
   using (
-    email = (select email from auth.users where id = auth.uid())
+    lower(email) = lower(coalesce(auth.jwt()->>'email', ''))
   );
