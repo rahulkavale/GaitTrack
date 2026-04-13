@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { TABLES } from "./tables";
-import type { SessionMetrics } from "./types";
+import type { SessionContext, SessionMetrics } from "./types";
 import {
   DEFAULT_METRIC_PREFERENCES,
   mergeMetricPreferences,
@@ -143,12 +143,12 @@ function generateJoinCode(): string {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-export async function createSession(patientId: string, label: string) {
+export async function createSession(patientId: string, label: string, sessionContext?: SessionContext | null) {
   const sessionId = crypto.randomUUID();
   const joinCode = generateJoinCode();
   const { error } = await supabase()
     .from(TABLES.sessions)
-    .insert({ id: sessionId, patient_id: patientId, label, join_code: joinCode });
+    .insert({ id: sessionId, patient_id: patientId, label, join_code: joinCode, session_context: sessionContext ?? null });
   if (error) throw error;
   return { id: sessionId, label, join_code: joinCode };
 }
@@ -191,6 +191,14 @@ export async function updateSessionNotes(sessionId: string, notes: string) {
   const { error } = await supabase()
     .from(TABLES.sessions)
     .update({ notes })
+    .eq("id", sessionId);
+  if (error) throw error;
+}
+
+export async function updateSessionContext(sessionId: string, sessionContext: SessionContext | null) {
+  const { error } = await supabase()
+    .from(TABLES.sessions)
+    .update({ session_context: sessionContext })
     .eq("id", sessionId);
   if (error) throw error;
 }

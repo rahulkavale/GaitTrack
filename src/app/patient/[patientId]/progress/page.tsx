@@ -7,7 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
-import type { SessionMetrics } from "@/lib/types";
+import type { SessionContext, SessionMetrics } from "@/lib/types";
 
 interface SessionRow {
   id: string;
@@ -18,6 +18,7 @@ interface SessionRow {
   total_steps: number | null;
   duration_seconds: number | null;
   computed_metrics: SessionMetrics | null;
+  session_context?: SessionContext | null;
   created_at: string;
 }
 
@@ -340,6 +341,16 @@ export default function ProgressPage({ params }: { params: Promise<{ patientId: 
                       <div className="text-[11px] text-gray-500">
                         {new Date(session.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </div>
+                      {session.session_context && (
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] text-gray-400">
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5">AFO: {session.session_context.afo.replace("_", " ")}</span>
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5">Footwear: {session.session_context.footwear.replace("_", " ")}</span>
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5">Support: {session.session_context.supportLevel.replace("_", " ")}</span>
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5">Env: {session.session_context.environment}</span>
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5">Pain: {session.session_context.painLevel ?? "?"}</span>
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5">Fatigue: {session.session_context.fatigueToday}</span>
+                        </div>
+                      )}
                     </div>
                     <ConfidenceBadge value={session.computed_metrics?.walkingConfidence ?? "steady"} />
                   </div>

@@ -7,7 +7,7 @@ import { GaitReport } from "@/components/GaitReport";
 import { RecordingVideo } from "@/components/RecordingVideo";
 import { MetricReplay } from "@/components/MetricReplay";
 import { reconcileViews } from "@/lib/reconcile-views";
-import type { FrameMetrics, PoseFrame, SessionMetrics } from "@/lib/types";
+import type { FrameMetrics, PoseFrame, SessionContext, SessionMetrics } from "@/lib/types";
 import type { MetricPreferences, TimelineMetricId } from "@/lib/metric-settings";
 
 interface Recording {
@@ -42,6 +42,7 @@ interface SessionData {
   total_steps: number | null;
   duration_seconds: number | null;
   created_at: string;
+  session_context?: SessionContext | null;
   computed_metrics?: SessionMetrics | null;
   recordings: Recording[];
 }
@@ -203,6 +204,16 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
           {recordings.length} angle{recordings.length !== 1 ? "s" : ""} recorded
           {session.join_code && <span> &middot; Code: <span className="font-mono text-green-400">{session.join_code}</span></span>}
         </p>
+        {session.session_context && (
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full bg-gray-800 px-2.5 py-1 text-gray-300">AFO: {session.session_context.afo.replace("_", " ")}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1 text-gray-300">Footwear: {session.session_context.footwear.replace("_", " ")}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1 text-gray-300">Support: {session.session_context.supportLevel.replace("_", " ")}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1 text-gray-300">Environment: {session.session_context.environment}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1 text-gray-300">Pain: {session.session_context.painLevel ?? "unknown"}</span>
+            <span className="rounded-full bg-gray-800 px-2.5 py-1 text-gray-300">Fatigue: {session.session_context.fatigueToday}</span>
+          </div>
+        )}
       </div>
 
       <div className="mx-auto max-w-4xl p-4 space-y-5">

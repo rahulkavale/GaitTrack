@@ -1,15 +1,19 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 interface SetupGuideProps {
   onDismiss: () => void;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
+  children?: ReactNode;
 }
 
 export function SetupGuide({
   onDismiss,
   secondaryActionLabel,
   onSecondaryAction,
+  children,
 }: SetupGuideProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6">
@@ -69,6 +73,12 @@ export function SetupGuide({
             </div>
           </div>
         </div>
+
+        {children && (
+          <div className="mt-5 border-t border-white/10 pt-5">
+            {children}
+          </div>
+        )}
 
         <button
           onClick={onDismiss}

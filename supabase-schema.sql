@@ -25,6 +25,7 @@ create table sessions (
   patient_id uuid references patients(id) on delete cascade not null,
   label text not null,
   notes text,
+  session_context jsonb,
   -- Consolidated metrics across all recordings
   knee_symmetry_index real,
   hip_symmetry_index real,

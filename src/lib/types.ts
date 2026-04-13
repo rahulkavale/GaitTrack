@@ -155,3 +155,21 @@ export interface GaitSession {
   notes: string;
   viewAngle: "side" | "front";
 }
+
+export interface SessionContext {
+  afo: "on" | "off" | "not_applicable" | "unknown";
+  footwear: "barefoot" | "shoes" | "orthotics" | "unknown";
+  supportLevel: "independent" | "hand_support" | "walker" | "other" | "unknown";
+  environment: "indoor" | "outdoor" | "unknown";
+  painLevel: number | null;
+  fatigueToday: "low" | "medium" | "high" | "unknown";
+}
+
+export const DEFAULT_SESSION_CONTEXT: SessionContext = {
+  afo: "unknown",
+  footwear: "unknown",
+  supportLevel: "unknown",
+  environment: "unknown",
+  painLevel: null,
+  fatigueToday: "unknown",
+};

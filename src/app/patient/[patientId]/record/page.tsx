@@ -11,9 +11,10 @@ import {
   getMetricPreferences,
   saveRecording,
   consolidateSessionMetrics,
+  updateSessionContext,
 } from "@/lib/db";
 import { putVideo } from "@/lib/videoStore";
-import type { PoseFrame, FrameMetrics } from "@/lib/types";
+import { DEFAULT_SESSION_CONTEXT, type PoseFrame, type FrameMetrics, type SessionContext } from "@/lib/types";
 import { DEFAULT_METRIC_PREFERENCES, type MetricPreferences } from "@/lib/metric-settings";
 import type { PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -25,6 +26,17 @@ const VIEW_LABELS: Record<ViewAngle, string> = {
   front: "Front",
   back: "Back",
 };
+
+function hasMeaningfulSessionContext(context: SessionContext) {
+  return (
+    context.afo !== "unknown" ||
+    context.footwear !== "unknown" ||
+    context.supportLevel !== "unknown" ||
+    context.environment !== "unknown" ||
+    context.painLevel != null ||
+    context.fatigueToday !== "unknown"
+  );
+}
 
 export default function RecordPage({
   params,
@@ -42,6 +54,8 @@ export default function RecordPage({
   const [recordingCount, setRecordingCount] = useState(0);
   const [showGuide, setShowGuide] = useState(true);
   const [showDone, setShowDone] = useState(false);
+  const [sessionContext, setSessionContext] = useState<SessionContext>(DEFAULT_SESSION_CONTEXT);
+  const [savingContext, setSavingContext] = useState(false);
 
   // Camera / recording state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,6 +116,16 @@ export default function RecordPage({
     }
     init();
   }, [patientId]);
+
+  const persistSessionContext = useCallback(async () => {
+    if (!sessionId) return;
+    setSavingContext(true);
+    try {
+      await updateSessionContext(sessionId, hasMeaningfulSessionContext(sessionContext) ? sessionContext : null);
+    } finally {
+      setSavingContext(false);
+    }
+  }, [sessionContext, sessionId]);
 
   useEffect(() => {
     getMetricPreferences()
@@ -412,13 +436,112 @@ export default function RecordPage({
           }}
         />
         <SetupGuide
-          onDismiss={() => {
+          onDismiss={async () => {
+            await persistSessionContext();
             setShowGuide(false);
             startCamera();
           }}
           secondaryActionLabel="Use Existing Video"
-          onSecondaryAction={() => fileInputRef.current?.click()}
-        />
+          onSecondaryAction={async () => {
+            await persistSessionContext();
+            fileInputRef.current?.click();
+          }}
+        >
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-medium text-white">Session Context</h3>
+              <p className="mt-1 text-xs text-gray-400">
+                Add the conditions for this recording so future comparisons stay meaningful.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-gray-400">
+                AFO
+                <select
+                  value={sessionContext.afo}
+                  onChange={(e) => setSessionContext((current) => ({ ...current, afo: e.target.value as SessionContext["afo"] }))}
+                  className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="unknown">Unknown</option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                  <option value="not_applicable">Not applicable</option>
+                </select>
+              </label>
+              <label className="text-xs text-gray-400">
+                Footwear
+                <select
+                  value={sessionContext.footwear}
+                  onChange={(e) => setSessionContext((current) => ({ ...current, footwear: e.target.value as SessionContext["footwear"] }))}
+                  className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="unknown">Unknown</option>
+                  <option value="barefoot">Barefoot</option>
+                  <option value="shoes">Shoes</option>
+                  <option value="orthotics">Orthotics</option>
+                </select>
+              </label>
+              <label className="text-xs text-gray-400">
+                Support
+                <select
+                  value={sessionContext.supportLevel}
+                  onChange={(e) => setSessionContext((current) => ({ ...current, supportLevel: e.target.value as SessionContext["supportLevel"] }))}
+                  className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="unknown">Unknown</option>
+                  <option value="independent">Independent</option>
+                  <option value="hand_support">Hand support</option>
+                  <option value="walker">Walker</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="text-xs text-gray-400">
+                Environment
+                <select
+                  value={sessionContext.environment}
+                  onChange={(e) => setSessionContext((current) => ({ ...current, environment: e.target.value as SessionContext["environment"] }))}
+                  className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="unknown">Unknown</option>
+                  <option value="indoor">Indoor</option>
+                  <option value="outdoor">Outdoor</option>
+                </select>
+              </label>
+              <label className="text-xs text-gray-400">
+                Pain today
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={sessionContext.painLevel ?? ""}
+                  onChange={(e) =>
+                    setSessionContext((current) => ({
+                      ...current,
+                      painLevel: e.target.value === "" ? null : Math.max(0, Math.min(10, Number(e.target.value))),
+                    }))
+                  }
+                  placeholder="0-10"
+                  className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500"
+                />
+              </label>
+              <label className="text-xs text-gray-400">
+                Fatigue today
+                <select
+                  value={sessionContext.fatigueToday}
+                  onChange={(e) => setSessionContext((current) => ({ ...current, fatigueToday: e.target.value as SessionContext["fatigueToday"] }))}
+                  className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="unknown">Unknown</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+            </div>
+            {savingContext && <p className="text-xs text-gray-500">Saving session context...</p>}
+          </div>
+        </SetupGuide>
       </>
     );
   }
