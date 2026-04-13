@@ -492,11 +492,18 @@ export function GaitReport({
                 <div className="mt-1 text-xs text-gray-400">
                   Left clearance {m.leftToeClearance.toFixed(3)}, right clearance {m.rightToeClearance.toFixed(3)}.
                 </div>
+                {onFocusMetric && (
+                  <div className="mt-1 flex gap-2">
+                    <ActionButton onClick={() => onFocusMetric("left_toe_clearance")} label="Focus Left Toe" />
+                    <ActionButton onClick={() => onFocusMetric("right_toe_clearance")} label="Focus Right Toe" />
+                  </div>
+                )}
               </div>
               <div className="rounded-xl border border-white/5 bg-gray-900/60 p-3">
                 <div className="text-xs uppercase tracking-wide text-gray-500">Fatigue drift</div>
                 <div className="mt-1 text-sm text-white">{m.fatigueObserved ? "movement changed later in the clip" : "no strong fatigue change flagged"}</div>
                 <div className="mt-1 text-xs text-gray-400">{fatiguePercent}% drift based on posture and foot-clearance changes.</div>
+                {onFocusMetric && <ActionButton onClick={() => onFocusMetric("fatigue_drift")} label="Watch Fatigue Replay" />}
               </div>
             </div>
           </div>
@@ -642,6 +649,7 @@ export function GaitReport({
                 <div className={`mt-1 text-xs ${m.leftHeelStrikePresent ? "text-green-400" : "text-yellow-400"}`}>
                   {m.leftHeelStrikePresent ? "heel-strike signal present" : "heel-strike signal limited"}
                 </div>
+                {onFocusMetric && <ActionButton onClick={() => onFocusMetric("left_toe_clearance")} label="Focus Left Toe" />}
               </div>
               <div className="rounded-lg border border-white/5 bg-gray-900/60 p-3">
                 <div className="text-xs text-gray-500">Right toe clearance</div>
@@ -649,6 +657,7 @@ export function GaitReport({
                 <div className={`mt-1 text-xs ${m.rightHeelStrikePresent ? "text-green-400" : "text-yellow-400"}`}>
                   {m.rightHeelStrikePresent ? "heel-strike signal present" : "heel-strike signal limited"}
                 </div>
+                {onFocusMetric && <ActionButton onClick={() => onFocusMetric("right_toe_clearance")} label="Focus Right Toe" />}
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-500">
@@ -691,6 +700,12 @@ export function GaitReport({
                 {fatiguePercent}% {m.fatigueObserved ? "observed" : "stable"}
               </span>
             </div>
+            {onFocusMetric && (
+              <div className="mt-2 flex gap-2">
+                <ActionButton onClick={() => onFocusMetric("pelvic_obliquity")} label="Watch Pelvis Replay" />
+                <ActionButton onClick={() => onFocusMetric("fatigue_drift")} label="Watch Fatigue Replay" />
+              </div>
+            )}
             <p className="mt-2 text-xs text-gray-500">
               Pelvic and fatigue signals are observational estimates from how hip level, posture, and foot clearance change across the clip.
             </p>

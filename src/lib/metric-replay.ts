@@ -81,6 +81,30 @@ export const METRIC_REPLAY_CONFIGS: MetricReplayConfig[] = [
     ],
   },
   {
+    id: "left_toe_clearance",
+    label: "Left Toe Clearance",
+    unit: "u",
+    normalMin: 0.012,
+    normalMax: 0.08,
+    joints: [LANDMARK.LEFT_KNEE, LANDMARK.LEFT_ANKLE, LANDMARK.LEFT_FOOT_INDEX],
+    segments: [
+      [LANDMARK.LEFT_KNEE, LANDMARK.LEFT_ANKLE],
+      [LANDMARK.LEFT_ANKLE, LANDMARK.LEFT_FOOT_INDEX],
+    ],
+  },
+  {
+    id: "right_toe_clearance",
+    label: "Right Toe Clearance",
+    unit: "u",
+    normalMin: 0.012,
+    normalMax: 0.08,
+    joints: [LANDMARK.RIGHT_KNEE, LANDMARK.RIGHT_ANKLE, LANDMARK.RIGHT_FOOT_INDEX],
+    segments: [
+      [LANDMARK.RIGHT_KNEE, LANDMARK.RIGHT_ANKLE],
+      [LANDMARK.RIGHT_ANKLE, LANDMARK.RIGHT_FOOT_INDEX],
+    ],
+  },
+  {
     id: "left_arm_swing",
     label: "Left Arm Swing",
     frameMetricKey: "leftShoulderAngle",
@@ -104,6 +128,34 @@ export const METRIC_REPLAY_CONFIGS: MetricReplayConfig[] = [
     segments: [
       [LANDMARK.RIGHT_SHOULDER, LANDMARK.RIGHT_ELBOW],
       [LANDMARK.RIGHT_ELBOW, LANDMARK.RIGHT_WRIST],
+    ],
+  },
+  {
+    id: "pelvic_obliquity",
+    label: "Pelvic Obliquity",
+    unit: "°",
+    normalMin: 0,
+    normalMax: 3,
+    absoluteValue: true,
+    joints: [LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP, LANDMARK.LEFT_SHOULDER, LANDMARK.RIGHT_SHOULDER],
+    segments: [
+      [LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP],
+      [LANDMARK.LEFT_SHOULDER, LANDMARK.RIGHT_SHOULDER],
+    ],
+  },
+  {
+    id: "fatigue_drift",
+    label: "Fatigue Drift",
+    unit: "%",
+    normalMin: 0,
+    normalMax: 35,
+    joints: [LANDMARK.LEFT_SHOULDER, LANDMARK.RIGHT_SHOULDER, LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP, LANDMARK.LEFT_FOOT_INDEX, LANDMARK.RIGHT_FOOT_INDEX],
+    segments: [
+      [LANDMARK.LEFT_SHOULDER, LANDMARK.LEFT_HIP],
+      [LANDMARK.RIGHT_SHOULDER, LANDMARK.RIGHT_HIP],
+      [LANDMARK.LEFT_HIP, LANDMARK.RIGHT_HIP],
+      [LANDMARK.LEFT_ANKLE, LANDMARK.LEFT_FOOT_INDEX],
+      [LANDMARK.RIGHT_ANKLE, LANDMARK.RIGHT_FOOT_INDEX],
     ],
   },
   {
@@ -205,10 +257,29 @@ export function getMetricValue(
   frameMetric: FrameMetrics
 ) {
   switch (metricId) {
+    case "left_toe_clearance": {
+      return Math.max(0, 0.08 - frameMetric.leftAnkleY);
+    }
+    case "right_toe_clearance": {
+      return Math.max(0, 0.08 - frameMetric.rightAnkleY);
+    }
     case "left_arm_swing":
       return frameMetric.leftShoulderAngle;
     case "right_arm_swing":
       return frameMetric.rightShoulderAngle;
+    case "pelvic_obliquity": {
+      return Math.abs(frameMetric.trunkLateralLean * 0.7);
+    }
+    case "fatigue_drift": {
+      const forward = Math.min(100, (frameMetric.trunkForwardLean / 20) * 100);
+      const lateral = Math.min(100, (Math.abs(frameMetric.trunkLateralLean) / 12) * 100);
+      const footDrop = Math.max(
+        0,
+        Math.min(100, ((0.02 - Math.max(0, 0.08 - frameMetric.leftAnkleY)) / 0.02) * 100),
+        Math.min(100, ((0.02 - Math.max(0, 0.08 - frameMetric.rightAnkleY)) / 0.02) * 100)
+      );
+      return Math.max(0, Math.min(100, forward * 0.4 + lateral * 0.2 + footDrop * 0.4));
+    }
     case "weight_shift": {
       const delta = frameMetric.rightAnkleY - frameMetric.leftAnkleY;
       return Math.max(-100, Math.min(100, delta * 800));

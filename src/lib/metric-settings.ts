@@ -22,8 +22,12 @@ export type TimelineMetricId =
   | "left_hip_angle"
   | "right_hip_angle"
   | "left_ankle_angle"
+  | "left_toe_clearance"
+  | "right_toe_clearance"
   | "left_arm_swing"
   | "right_arm_swing"
+  | "pelvic_obliquity"
+  | "fatigue_drift"
   | "weight_shift"
   | "fall_risk"
   | "trunk_forward_lean"
@@ -117,8 +121,12 @@ const defaultTimelines: Record<TimelineMetricId, TimelineMetricPreference> = {
   left_hip_angle: { enabled: true },
   right_hip_angle: { enabled: true },
   left_ankle_angle: { enabled: true },
+  left_toe_clearance: { enabled: true },
+  right_toe_clearance: { enabled: true },
   left_arm_swing: { enabled: true },
   right_arm_swing: { enabled: true },
+  pelvic_obliquity: { enabled: true },
+  fatigue_drift: { enabled: true },
   weight_shift: { enabled: true },
   fall_risk: { enabled: true },
   trunk_forward_lean: { enabled: true },
@@ -362,6 +370,28 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
     source: "Direct pose-derived geometric angle.",
   },
   {
+    id: "left_toe_clearance",
+    kind: "timeline",
+    label: "Left Toe Clearance Trace",
+    shortDescription: "Frame-by-frame left foot clearance estimate.",
+    detailDescription:
+      "Estimates how much the left forefoot lifts during walking. Lower values can help highlight moments where the foot appears close to the ground.",
+    inputs: ["left foot index landmark", "left ankle landmark"],
+    formula: "Difference between a session baseline foot height and the current left forefoot height per frame.",
+    source: "Internal project heuristic from pose-derived foot height.",
+  },
+  {
+    id: "right_toe_clearance",
+    kind: "timeline",
+    label: "Right Toe Clearance Trace",
+    shortDescription: "Frame-by-frame right foot clearance estimate.",
+    detailDescription:
+      "Estimates how much the right forefoot lifts during walking. Lower values can help highlight moments where the foot appears close to the ground.",
+    inputs: ["right foot index landmark", "right ankle landmark"],
+    formula: "Difference between a session baseline foot height and the current right forefoot height per frame.",
+    source: "Internal project heuristic from pose-derived foot height.",
+  },
+  {
     id: "left_arm_swing",
     kind: "timeline",
     label: "Left Arm Swing Trace",
@@ -382,6 +412,28 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
     inputs: ["right shoulder, elbow, hip landmarks"],
     formula: "Per-frame shoulder-arm angle derived from pose landmarks on the right side.",
     source: "Direct pose-derived geometric angle used as an observational arm swing signal.",
+  },
+  {
+    id: "pelvic_obliquity",
+    kind: "timeline",
+    label: "Pelvic Obliquity Trace",
+    shortDescription: "Frame-by-frame hip-line tilt.",
+    detailDescription:
+      "Shows how level or tilted the pelvis appears over time by following the line between the hips.",
+    inputs: ["left hip landmark", "right hip landmark"],
+    formula: "Angle of the hip-to-hip line from horizontal per frame.",
+    source: "Pose-derived geometric angle, best interpreted from front view.",
+  },
+  {
+    id: "fatigue_drift",
+    kind: "timeline",
+    label: "Fatigue Drift Trace",
+    shortDescription: "Frame-by-frame late-session fatigue signal.",
+    detailDescription:
+      "Estimates whether posture and foot clearance worsen as the clip progresses. Higher values later in the replay suggest possible fatigue-related drift.",
+    inputs: ["trunk forward lean", "trunk lateral lean", "left/right toe clearance"],
+    formula: "Weighted per-frame drift score using posture and toe-clearance changes relative to the early part of the session.",
+    source: "Internal project heuristic for visual trend tracking over a single recording.",
   },
   {
     id: "weight_shift",
@@ -517,8 +569,12 @@ export function getTimelineMetricOrder(): TimelineMetricId[] {
     "left_hip_angle",
     "right_hip_angle",
     "left_ankle_angle",
+    "left_toe_clearance",
+    "right_toe_clearance",
     "left_arm_swing",
     "right_arm_swing",
+    "pelvic_obliquity",
+    "fatigue_drift",
     "weight_shift",
     "fall_risk",
     "trunk_forward_lean",

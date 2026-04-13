@@ -37,6 +37,7 @@ interface MetricReplayProps {
 function formatMetricValue(value: number, unit: string) {
   if (unit === "") return `${Math.round(value * 100)}%`;
   if (unit === "%") return `${Math.round(value)}%`;
+  if (unit === "u") return value.toFixed(3);
   return `${Math.round(value * 10) / 10}${unit}`;
 }
 
@@ -52,10 +53,18 @@ function describeHighlight(metricId: TimelineMetricId) {
       return "The overlay highlights the right side of the trunk and upper leg, centered on the hip joint.";
     case "left_ankle_angle":
       return "The overlay highlights the lower leg and foot on the left side, centered on the ankle.";
+    case "left_toe_clearance":
+      return "The overlay highlights the left lower leg and forefoot so you can see when the toes stay close to the ground.";
+    case "right_toe_clearance":
+      return "The overlay highlights the right lower leg and forefoot so you can see when the toes stay close to the ground.";
     case "left_arm_swing":
       return "The overlay highlights the left upper arm and forearm to show how the left arm is swinging through the step cycle.";
     case "right_arm_swing":
       return "The overlay highlights the right upper arm and forearm to show how the right arm is swinging through the step cycle.";
+    case "pelvic_obliquity":
+      return "The overlay highlights the hip line and shoulder line so you can see whether the pelvis appears level or tilted.";
+    case "fatigue_drift":
+      return "The overlay highlights the trunk, pelvis, and feet to show how posture and foot clearance drift as the replay progresses.";
     case "weight_shift":
       return "The overlay highlights both legs and the pelvis so you can see which side appears to be taking more support at each moment.";
     case "fall_risk":
@@ -167,6 +176,21 @@ export function MetricReplay({
       if (metricValue > 12) return "At this moment, more support appears to shift onto the right leg, so the trace moves right of center and the overlay escalates in color.";
       if (metricValue < -12) return "At this moment, more support appears to shift onto the left leg, so the trace moves left of center and the overlay escalates in color.";
       return "At this moment, support looks fairly centered between both legs, so the replay stays in the expected band.";
+    }
+    if (selectedMetricId === "left_toe_clearance" || selectedMetricId === "right_toe_clearance") {
+      return metricValue < 0.012
+        ? "The toes are staying close to the ground at this moment, so the overlay escalates to warn about possible dragging risk."
+        : "The toes are clearing the ground more comfortably at this moment, so the replay stays in the expected band.";
+    }
+    if (selectedMetricId === "pelvic_obliquity") {
+      return metricValue > 3
+        ? "The hip line is visibly tilted at this moment, so the overlay highlights pelvic imbalance."
+        : "The hip line stays close to level at this moment, so the replay remains in the lower-severity band.";
+    }
+    if (selectedMetricId === "fatigue_drift") {
+      return metricValue > 35
+        ? "Posture and foot-clearance signals are drifting away from the early-session baseline here, so the fatigue trace rises."
+        : "Movement remains close to the early-session baseline here, so the fatigue trace stays low.";
     }
     if (selectedMetricId === "fall_risk") {
       const lateral = currentMetric.trunkLateralLean;

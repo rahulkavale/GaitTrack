@@ -231,6 +231,30 @@ export function GaitTimelines({
           normalMax={95}
         />
       )}
+      {enabled("left_toe_clearance") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="left_toe_clearance"
+          title="Left Toe Clearance"
+          unit="u"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={0.012}
+          normalMax={0.08}
+        />
+      )}
+      {enabled("right_toe_clearance") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="right_toe_clearance"
+          title="Right Toe Clearance"
+          unit="u"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={0.012}
+          normalMax={0.08}
+        />
+      )}
       {enabled("left_arm_swing") && (
         <MetricsTimeline
           frameMetrics={frameMetrics}
@@ -253,6 +277,30 @@ export function GaitTimelines({
           comparisonLabel={comparisonLabel}
           normalMin={20}
           normalMax={60}
+        />
+      )}
+      {enabled("pelvic_obliquity") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="pelvic_obliquity"
+          title="Pelvic Obliquity"
+          unit="°"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={0}
+          normalMax={3}
+        />
+      )}
+      {enabled("fatigue_drift") && (
+        <MetricsTimeline
+          frameMetrics={frameMetrics}
+          metricId="fatigue_drift"
+          title="Fatigue Drift"
+          unit="%"
+          comparisonData={comparisonMetrics}
+          comparisonLabel={comparisonLabel}
+          normalMin={0}
+          normalMax={35}
         />
       )}
       {enabled("weight_shift") && (
