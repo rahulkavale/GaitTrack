@@ -264,13 +264,17 @@ export async function inviteToPatient(patientId: string, email: string, role: st
 export async function getPendingInvitations() {
   const { data: { user } } = await supabase().auth.getUser();
   if (!user) return [];
+  if (!user.email) return [];
 
   const { data: invitations, error } = await supabase()
     .from(TABLES.invitations)
     .select("*")
     .eq("email", user.email)
     .eq("accepted", false);
-  if (error) throw error;
+  if (error) {
+    console.error("Failed to load invitations:", error);
+    return [];
+  }
   if (!invitations || invitations.length === 0) return [];
 
   // Fetch patient names separately

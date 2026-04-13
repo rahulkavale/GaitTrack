@@ -48,14 +48,25 @@ export default function DashboardPage() {
 
       setUserName(user.user_metadata?.name || user.email || "");
 
-      try {
-        const [p, inv] = await Promise.all([getPatients(user.id), getPendingInvitations()]);
-        if (!active) return;
-        setPatients(p as unknown as Patient[]);
-        setInvitations(inv as unknown as Invitation[]);
-      } catch (err) {
-        if (!active) return;
-        console.error("Failed to load patients:", err);
+      const [patientsResult, invitationsResult] = await Promise.allSettled([
+        getPatients(user.id),
+        getPendingInvitations(),
+      ]);
+
+      if (!active) return;
+
+      if (patientsResult.status === "fulfilled") {
+        setPatients(patientsResult.value as unknown as Patient[]);
+      } else {
+        console.error("Failed to load patients:", patientsResult.reason);
+        setPatients([]);
+      }
+
+      if (invitationsResult.status === "fulfilled") {
+        setInvitations(invitationsResult.value as unknown as Invitation[]);
+      } else {
+        console.error("Failed to load invitations:", invitationsResult.reason);
+        setInvitations([]);
       }
 
       if (active) setLoading(false);
@@ -91,9 +102,16 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await acceptInvitation(id);
-    const [p, inv] = await Promise.all([getPatients(user.id), getPendingInvitations()]);
-    setPatients(p as unknown as Patient[]);
-    setInvitations(inv as unknown as Invitation[]);
+    const [patientsResult, invitationsResult] = await Promise.allSettled([
+      getPatients(user.id),
+      getPendingInvitations(),
+    ]);
+    if (patientsResult.status === "fulfilled") {
+      setPatients(patientsResult.value as unknown as Patient[]);
+    }
+    if (invitationsResult.status === "fulfilled") {
+      setInvitations(invitationsResult.value as unknown as Invitation[]);
+    }
   };
 
   const handleDeletePatient = async (patientId: string, patientName: string) => {
