@@ -247,7 +247,7 @@ export function GaitReport({
       </div>
 
       {/* Overall score - shown in all views */}
-      <div className="bg-gray-800 rounded-xl p-4 text-center">
+      <div className="rounded-2xl border border-white/5 bg-gray-800 p-5 text-center shadow-sm shadow-black/20">
         <div className="text-xs text-gray-400 mb-1">Gait Deviation Index</div>
         <div className="text-4xl font-mono font-bold text-white">{m.gaitDeviationIndex}</div>
         <div className="text-xs text-gray-500 mt-1">out of 100 (higher = more typical gait)</div>
@@ -265,7 +265,7 @@ export function GaitReport({
       </div>
 
       {canFocusReplay && (view === "parent" || view === "clinical") && (
-        <div className="rounded-xl border border-green-700/60 bg-green-900/20 p-4">
+        <div className="rounded-2xl border border-green-700/60 bg-green-900/20 p-4 shadow-sm shadow-green-950/10">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-green-200">Metric replay available</p>
@@ -286,7 +286,7 @@ export function GaitReport({
           {/* Simple metric cards */}
           <div className="space-y-2">
             {visibleParentMetrics.map((pm) => (
-              <div key={pm.label} className="bg-gray-800 rounded-xl p-3 flex justify-between items-center">
+              <div key={pm.label} className="flex items-center justify-between rounded-2xl border border-white/5 bg-gray-800 p-4 shadow-sm shadow-black/20">
                 <div>
                   <div className="text-sm text-white">{pm.label}</div>
                   {pm.change && (
@@ -313,7 +313,7 @@ export function GaitReport({
             <div className="space-y-2">
               <h2 className="text-sm font-medium text-gray-400">Observed movement features</h2>
               {detectedPatterns.map((p) => (
-                <div key={p.name} className={`rounded-xl p-3 border ${SEV_BG[p.severity]}`}>
+                <div key={p.name} className={`rounded-2xl p-4 border shadow-sm ${SEV_BG[p.severity]}`}>
                   <div className="flex items-center gap-1 mb-1">
                     <SeverityDot severity={p.severity} />
                     <span className={`text-sm font-medium ${SEV_COLORS[p.severity]}`}>{p.name}</span>
@@ -334,22 +334,22 @@ export function GaitReport({
           )}
 
           {detectedPatterns.length === 0 && (
-            <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-4 text-center">
+            <div className="rounded-2xl border border-green-800/50 bg-green-900/20 p-4 text-center shadow-sm shadow-green-950/10">
               <p className="text-sm text-green-300">No notable movement features were flagged in this capture</p>
             </div>
           )}
 
           {/* Summary stats */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-gray-800 rounded-xl p-3 text-center">
+            <div className="rounded-2xl border border-white/5 bg-gray-800 p-3 text-center shadow-sm shadow-black/20">
               <div className="text-[10px] text-gray-500">Duration</div>
               <div className="text-lg font-mono font-bold">{Math.round(m.durationSeconds)}s</div>
             </div>
-            <div className="bg-gray-800 rounded-xl p-3 text-center">
+            <div className="rounded-2xl border border-white/5 bg-gray-800 p-3 text-center shadow-sm shadow-black/20">
               <div className="text-[10px] text-gray-500">Steps</div>
               <div className="text-lg font-mono font-bold">{m.totalSteps}</div>
             </div>
-            <div className="bg-gray-800 rounded-xl p-3 text-center">
+            <div className="rounded-2xl border border-white/5 bg-gray-800 p-3 text-center shadow-sm shadow-black/20">
               <div className="text-[10px] text-gray-500">Cadence</div>
               <div className="text-lg font-mono font-bold">{Math.round(m.strideCadence)}</div>
             </div>

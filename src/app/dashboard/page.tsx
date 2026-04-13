@@ -153,12 +153,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="bg-gray-900 p-4 pb-6 safe-top">
+      <div className="bg-gray-900/95 p-4 pb-6 shadow-lg shadow-black/20 safe-top">
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-bold mb-1">Gait Tracker</h1>
             <p className="text-sm text-gray-400">Hi, {userName}</p>
-            <p className="text-xs text-gray-500 mt-2">Choose a child profile or create a new one to start recording.</p>
+            <p className="text-xs text-gray-500 mt-2 max-w-xs">Choose a child profile or create a new one to start recording.</p>
           </div>
           <div className="rounded-full bg-green-500/10 px-3 py-1 text-[10px] font-medium tracking-[0.18em] text-green-300">
             TRACKING HOME
@@ -166,12 +166,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="mx-auto max-w-3xl p-4 space-y-5">
         {invitations.length > 0 && (
           <div className="space-y-2">
             <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-blue-300/80">Invitations</h2>
             {invitations.map((inv) => (
-              <div key={inv.id} className="bg-blue-900/30 border border-blue-800 rounded-xl p-4">
+              <div key={inv.id} className="rounded-2xl border border-blue-800/80 bg-blue-900/25 p-4 shadow-sm shadow-blue-950/20">
                 <p className="text-sm text-blue-300 mb-2">
                   You&apos;ve been invited as <strong>{inv.role}</strong> for{" "}
                   <strong>{inv.patients?.name}</strong>
@@ -187,7 +187,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="bg-gray-900 rounded-xl p-4">
+        <div className="rounded-2xl border border-white/5 bg-gray-900 p-4 shadow-sm shadow-black/20">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-medium text-white">Your children</h2>
@@ -211,7 +211,7 @@ export default function DashboardPage() {
         </div>
 
         {showAddPatient ? (
-          <form onSubmit={handleAddPatient} className="bg-gray-800 rounded-xl p-4">
+          <form onSubmit={handleAddPatient} className="rounded-2xl border border-white/5 bg-gray-800 p-4 shadow-sm shadow-black/20">
             <label className="block text-sm text-gray-400 mb-2">Child&apos;s name</label>
             <input
               type="text"
@@ -240,7 +240,7 @@ export default function DashboardPage() {
         ) : (
           <button
             onClick={() => setShowAddPatient(true)}
-            className="w-full bg-green-600 rounded-xl p-4 text-center active:bg-green-700 transition-colors"
+            className="w-full rounded-2xl bg-green-600 p-5 text-center shadow-lg shadow-green-900/20 transition-colors active:bg-green-700"
           >
             <div className="text-lg font-bold">Add a Child</div>
             <div className="text-sm text-green-200">Start tracking their progress</div>
@@ -259,7 +259,7 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {patients.map((patient) => (
-              <div key={patient.id} className="bg-gray-800 rounded-xl p-4 mb-3">
+              <div key={patient.id} className="mb-3 rounded-2xl border border-white/5 bg-gray-800 p-4 shadow-sm shadow-black/20">
                 <Link href={`/patient/${patient.id}`}>
                   <div className="flex justify-between items-center active:opacity-70">
                     <div>

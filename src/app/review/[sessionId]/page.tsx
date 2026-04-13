@@ -178,7 +178,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-8">
-      <div className="bg-gray-900 p-4 safe-top">
+      <div className="bg-gray-900/95 p-4 shadow-lg shadow-black/20 safe-top">
         <button
           onClick={() => router.push(`/patient/${session.patient_id}`)}
           className="text-green-400 text-sm mb-2"
@@ -197,8 +197,8 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         </p>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+      <div className="mx-auto max-w-4xl p-4 space-y-5">
+        <div className="flex gap-1 rounded-2xl bg-gray-900 p-1 shadow-sm shadow-black/20">
           <button
             onClick={() => setActiveSection("overview")}
             className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium ${
@@ -227,7 +227,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
 
         {/* View toggle tabs */}
         {hasMultipleAngles && (
-          <div className="flex gap-1 bg-gray-900 rounded-xl p-1 overflow-x-auto">
+          <div className="flex gap-1 overflow-x-auto rounded-2xl bg-gray-900 p-1 shadow-sm shadow-black/20">
             <button
               onClick={() => setActiveTab("reconciled")}
               className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-medium ${
@@ -252,7 +252,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
 
         {/* Active tab description */}
         {hasMultipleAngles && activeTab === "reconciled" && (
-          <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-3 text-xs text-green-300">
+          <div className="rounded-2xl border border-green-800/50 bg-green-900/20 p-3 text-xs text-green-300">
             Combined view: best metrics from each camera angle merged into one analysis.
             Side view for joint angles, front view for lateral movement.
           </div>
@@ -260,7 +260,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
 
         {activeSection === "overview" && (
           <>
-            <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+            <div className="flex gap-1 rounded-2xl bg-gray-900 p-1 shadow-sm shadow-black/20">
               <button
                 onClick={() => setOverviewMode("parent")}
                 className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
@@ -305,11 +305,11 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         )}
 
         {activeSection === "replay" && (
-          <div className="bg-gray-900 rounded-xl p-3 space-y-3">
+          <div className="rounded-2xl border border-white/5 bg-gray-900 p-4 shadow-sm shadow-black/20 space-y-4">
             <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-gray-300">
               Replay videos are stored only on the recording device in local browser storage. They are never uploaded to cloud storage, so they may be unavailable on a different phone or browser.
             </div>
-            <div className="flex gap-1 bg-gray-800 rounded-xl p-1">
+            <div className="flex gap-1 rounded-xl bg-gray-800 p-1">
               <button
                 onClick={() => setReplayMode("standard")}
                 className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
@@ -374,10 +374,10 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
 
         {activeSection === "advanced" && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-white/10 bg-gray-900 p-3 text-xs text-gray-300">
+            <div className="rounded-2xl border border-white/10 bg-gray-900 p-3 text-xs text-gray-300">
               Advanced views keep every existing detail, but they are separated from the default overview so the main reading flow stays simpler.
             </div>
-            <div className="flex gap-1 bg-gray-900 rounded-xl p-1">
+            <div className="flex gap-1 rounded-2xl bg-gray-900 p-1 shadow-sm shadow-black/20">
               <button
                 onClick={() => setAdvancedMode("trends")}
                 className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${
@@ -412,7 +412,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         )}
 
         {/* Notes */}
-        <div className="bg-gray-800 rounded-xl p-4">
+        <div className="rounded-2xl border border-white/5 bg-gray-800 p-4 shadow-sm shadow-black/20">
           <h2 className="text-sm font-medium text-gray-300 mb-2">Notes</h2>
           <textarea
             value={notes}
@@ -431,7 +431,7 @@ export default function ReviewPage({ params }: { params: Promise<{ sessionId: st
         {/* Delete */}
         <button
           onClick={handleDelete}
-          className="w-full bg-red-900/50 text-red-400 py-3 rounded-xl text-sm active:bg-red-900"
+          className="w-full rounded-2xl bg-red-900/50 py-3 text-sm text-red-400 shadow-sm shadow-black/20 active:bg-red-900"
         >
           Delete session
         </button>

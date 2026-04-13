@@ -95,16 +95,16 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-8">
-      <div className="bg-gray-900 p-4 safe-top">
+      <div className="bg-gray-900/95 p-4 shadow-lg shadow-black/20 safe-top">
         <button onClick={() => router.push("/")} className="text-green-400 text-sm mb-2">
           &larr; Back
         </button>
         <h1 className="text-xl font-bold">{patient?.name}</h1>
-        <p className="text-sm text-gray-400 mt-1">Start a new recording or review past sessions.</p>
+        <p className="text-sm text-gray-400 mt-1 max-w-sm">Start a new recording or review past sessions.</p>
         <div className="flex gap-2 mt-3">
           <Link
             href={`/patient/${patientId}/record`}
-            className="flex-1 bg-green-600 text-white py-2.5 rounded-xl text-sm font-medium text-center active:bg-green-700"
+            className="flex-1 rounded-xl bg-green-600 py-2.5 text-center text-sm font-medium text-white shadow-lg shadow-green-900/20 active:bg-green-700"
           >
             New Recording
           </Link>
@@ -119,8 +119,8 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="bg-gray-900 rounded-xl p-4">
+      <div className="mx-auto max-w-3xl p-4 space-y-5">
+        <div className="rounded-2xl border border-white/5 bg-gray-900 p-4 shadow-sm shadow-black/20">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-medium text-white">Manage profile</h2>
@@ -144,7 +144,7 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
         </div>
 
         {showInvite && (
-          <form onSubmit={handleInvite} className="bg-gray-800 rounded-xl p-4 space-y-3">
+          <form onSubmit={handleInvite} className="rounded-2xl border border-white/5 bg-gray-800 p-4 space-y-3 shadow-sm shadow-black/20">
             <input
               type="email"
               value={inviteEmail}
@@ -200,11 +200,11 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
         ) : (
           Object.entries(groupedSessions).map(([date, daySessions]) => (
             <div key={date}>
-              <h2 className="text-sm font-medium text-gray-400 mb-2">{date}</h2>
+              <h2 className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-gray-400">{date}</h2>
               <div className="space-y-2">
                 {daySessions.map((session) => (
                   <Link key={session.id} href={`/review/${session.id}`}>
-                    <div className="bg-gray-800 rounded-xl p-4 active:bg-gray-700 transition-colors mb-2">
+                    <div className="mb-2 rounded-2xl border border-white/5 bg-gray-800 p-4 shadow-sm shadow-black/20 transition-colors active:bg-gray-700">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <h3 className="font-medium text-white text-sm">
@@ -220,7 +220,7 @@ export default function PatientPage({ params }: { params: Promise<{ patientId: s
                             {session.recordings.length !== 1 ? "s" : ""} recorded
                           </p>
                         </div>
-                        <span className="text-xs text-green-400">Open review</span>
+                        <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-medium tracking-[0.14em] text-green-300">OPEN</span>
                       </div>
                       {session.knee_symmetry_index != null && (
                         <div className="grid grid-cols-3 gap-2 text-xs">
