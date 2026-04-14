@@ -88,36 +88,6 @@ export function SessionContextFields({
             <option value="outdoor">Outdoor</option>
           </select>
         </label>
-        <label className="text-xs text-gray-400">
-          Pain today
-          <input
-            type="number"
-            min={0}
-            max={10}
-            value={value.painLevel ?? ""}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                painLevel: e.target.value === "" ? null : Math.max(0, Math.min(10, Number(e.target.value))),
-              })
-            }
-            placeholder="0-10"
-            className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500"
-          />
-        </label>
-        <label className="text-xs text-gray-400">
-          Fatigue today
-          <select
-            value={value.fatigueToday}
-            onChange={(e) => onChange({ ...value, fatigueToday: e.target.value as SessionContext["fatigueToday"] })}
-            className="mt-1 w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white"
-          >
-            <option value="unknown">Unknown</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-        </label>
       </div>
       {saving && <p className="text-xs text-gray-500">Saving session context...</p>}
     </div>

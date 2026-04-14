@@ -17,7 +17,7 @@ export function SetupGuide({
 }: SetupGuideProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6">
-      <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full text-white">
+      <div className="max-h-[calc(100vh-3rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-gray-900 p-6 text-white">
         <h2 className="text-xl font-bold mb-4">How to Record</h2>
 
         <div className="space-y-4 text-sm">
